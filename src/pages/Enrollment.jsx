@@ -7,9 +7,20 @@ import { useMediaPipe } from '../hooks/useMediaPipe'
 import { supabase } from '../lib/supabase'
 
 const VOCABULARY = [
-  'hello', 'thank you', 'please', 'help', 'yes', 'no', 
-  'doctor', 'pain', 'emergency', 'water', 'food', 'bathroom', 
-  'family', 'friend', 'sorry', 'good', 'bad', 'stop', 'wait', 'more',
+  // Basic & Greetings
+  'hello', 'thank you', 'please', 'help', 'yes', 'no', 'sorry', 'good', 'bad',
+  'how are you', 'what', 'where', 'when', 'why', 'who', 
+  // Medical & Needs
+  'doctor', 'pain', 'emergency', 'water', 'food', 'bathroom', 'hospital', 'sick', 'medicine',
+  // People & Relationships
+  'family', 'friend', 'mother', 'father', 'sister', 'brother',
+  // Actions & Directions
+  'stop', 'wait', 'more', 'go', 'come', 'left', 'right', 'straight',
+  // Emotions
+  'happy', 'sad', 'angry', 'tired', 'scared',
+  // Workplace & Tech
+  'work', 'meeting', 'internet', 'computer', 'phone', 'email',
+  // Numbers
   '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'
 ]
 

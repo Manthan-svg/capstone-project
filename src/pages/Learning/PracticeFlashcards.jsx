@@ -1,24 +1,35 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
-import { RefreshCw, Check, X, ArrowRight, PlayCircle } from 'lucide-react'
-
-// Reusing fixed vocabulary from Phase 1
-const VOCABULARY = [
-  'hello', 'thank you', 'please', 'help', 'yes', 'no', 'doctor', 
-  'pain', 'emergency', 'water', 'food', 'bathroom', 'family', 
-  'friend', 'sorry', 'good', 'bad', 'stop', 'wait', 'more'
-]
+import { RefreshCw, Check, X, ArrowRight, VideoOff } from 'lucide-react'
+import { supabase } from '../../lib/supabase'
+import { getAllTemplates } from '../../lib/db'
 
 export default function PracticeFlashcards() {
-  const [deck, setDeck] = useState(() => [...VOCABULARY].sort(() => Math.random() - 0.5))
+  const [deck, setDeck] = useState([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isFlipped, setIsFlipped] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   
   const [stats, setStats] = useState({ known: 0, learning: 0 })
 
-  const currentWord = deck[currentIndex]
-  const isComplete = currentIndex >= deck.length
+  useEffect(() => {
+    loadEnrolledSigns()
+  }, [])
+
+  const loadEnrolledSigns = async () => {
+    setIsLoading(true)
+    const { data } = await supabase.auth.getUser()
+    if (data?.user) {
+      const templates = await getAllTemplates(data.user.id)
+      // Shuffle templates
+      setDeck(templates.sort(() => Math.random() - 0.5))
+    }
+    setIsLoading(false)
+  }
+
+  const currentTemplate = deck[currentIndex]
+  const isComplete = currentIndex >= deck.length && deck.length > 0
 
   const handleNext = (knewIt) => {
     setStats(prev => ({
@@ -30,10 +41,30 @@ export default function PracticeFlashcards() {
   }
 
   const restart = () => {
-    setDeck([...VOCABULARY].sort(() => Math.random() - 0.5))
+    setDeck(prev => [...prev].sort(() => Math.random() - 0.5))
     setCurrentIndex(0)
     setIsFlipped(false)
     setStats({ known: 0, learning: 0 })
+  }
+
+  if (isLoading) {
+    return <div className="text-center mt-20">Loading your enrolled signs...</div>
+  }
+
+  if (deck.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] animate-fade-in-up">
+        <Card className="max-w-md w-full text-center p-10 shadow-card-lg border-indigo-50 bg-white">
+          <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <VideoOff className="w-10 h-10 text-slate-400" />
+          </div>
+          <CardTitle className="text-2xl font-bold mb-4">No Signs Enrolled</CardTitle>
+          <p className="text-muted-foreground mb-8">
+            You haven't enrolled any signs yet. Please go to the <b>Sign Enrollment</b> section to record yourself signing words before you can practice them here!
+          </p>
+        </Card>
+      </div>
+    )
   }
 
   if (isComplete) {
@@ -67,6 +98,9 @@ export default function PracticeFlashcards() {
       </div>
     )
   }
+
+  const currentWord = currentTemplate.word
+  const videoUrl = currentTemplate.videoBlob ? URL.createObjectURL(currentTemplate.videoBlob) : null
 
   return (
     <div className="max-w-2xl mx-auto space-y-8 animate-fade-in-up">
@@ -102,16 +136,20 @@ export default function PracticeFlashcards() {
             <p className="text-slate-500 dark:text-slate-400 font-bold uppercase tracking-[0.2em] text-sm mb-6">Did you sign it correctly?</p>
             
             <div className="w-56 h-56 bg-slate-900 rounded-2xl border border-slate-300 flex items-center justify-center mb-10 shadow-sm relative overflow-hidden">
-               <video 
-                 src="https://www.w3schools.com/html/mov_bbb.mp4" 
-                 autoPlay 
-                 loop 
-                 muted 
-                 playsInline
-                 className="w-full h-full object-cover"
-               />
+               {videoUrl ? (
+                 <video 
+                   src={videoUrl} 
+                   autoPlay 
+                   loop 
+                   muted 
+                   playsInline
+                   className="w-full h-full object-cover transform scale-x-[-1]"
+                 />
+               ) : (
+                 <p className="text-white">No video saved</p>
+               )}
                <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-2 text-center">
-                 <span className="text-xs font-medium text-white shadow-sm">ISL: <b className="capitalize">{currentWord}</b></span>
+                 <span className="text-xs font-medium text-white shadow-sm">Your Enrolled Sign: <b className="capitalize">{currentWord}</b></span>
                </div>
             </div>
 
