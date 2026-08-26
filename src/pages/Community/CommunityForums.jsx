@@ -17,6 +17,16 @@ export default function CommunityForums() {
 
   useEffect(() => {
     fetchThreads()
+    
+    // Subscribe to real-time updates for the community forum
+    const channel = supabase
+      .channel('public:forum_threads')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'forum_threads' }, payload => {
+        fetchThreads() // Refresh threads when any change occurs (insert, update, delete)
+      })
+      .subscribe()
+
+    return () => supabase.removeChannel(channel)
   }, [activeCategory])
 
   const fetchThreads = async () => {
@@ -182,6 +192,16 @@ function ThreadView({ thread, onBack, user, profile }) {
 
   useEffect(() => {
     fetchReplies()
+    
+    // Subscribe to real-time replies
+    const channel = supabase
+      .channel(`public:forum_replies:${thread.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'forum_replies', filter: `thread_id=eq.${thread.id}` }, payload => {
+        fetchReplies()
+      })
+      .subscribe()
+
+    return () => supabase.removeChannel(channel)
   }, [thread.id])
 
   const fetchReplies = async () => {

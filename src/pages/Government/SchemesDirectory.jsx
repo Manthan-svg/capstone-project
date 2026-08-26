@@ -54,12 +54,17 @@ export default function SchemesDirectory() {
                   </h4>
                   <p className="text-[15px] font-semibold text-slate-700 dark:text-slate-300 leading-snug">{scheme.eligibility}</p>
                 </div>
-                <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-border shadow-sm group-hover:border-indigo-100 dark:border-indigo-900/50 transition-colors">
+                <a 
+                  href="https://www.india.gov.in/" 
+                  target="_blank" 
+                  rel="noreferrer"
+                  className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-border shadow-sm group-hover:border-indigo-100 dark:border-indigo-900/50 transition-colors block hover:bg-slate-50 dark:hover:bg-slate-800"
+                >
                   <h4 className="text-[11px] font-black uppercase tracking-[0.15em] text-blue-600 flex items-center gap-2 mb-3">
                     <ExternalLink className="w-4 h-4" /> How to Apply
                   </h4>
                   <p className="text-[15px] font-semibold text-slate-700 dark:text-slate-300 leading-snug">{scheme.how_to_apply}</p>
-                </div>
+                </a>
               </div>
             </CardContent>
           </Card>

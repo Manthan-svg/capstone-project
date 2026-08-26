@@ -88,7 +88,7 @@ CREATE POLICY "Employers can read applicant resumes" ON storage.objects FOR SELE
 INSERT INTO public.job_listings (title, company, type, location, description) VALUES
 ('Accessibility QA Tester', 'TechCorp', 'Job', 'Remote', 'Test our web applications for accessibility compliance.'),
 ('Frontend Developer', 'SignBridge', 'Job', 'Remote', 'Join our team to build accessible React applications.'),
-('Deaf Studies Researcher', 'University of ASL', 'Job', 'Washington, DC', 'Conduct research on deaf community trends.'),
+('Deaf Studies Researcher', 'University of ISL', 'Job', 'Washington, DC', 'Conduct research on deaf community trends.'),
 ('Data Entry Specialist', 'HealthData Inc', 'Job', 'Remote', 'Accurate data entry for medical records.'),
 ('Graphic Design Intern', 'Creative Agency', 'Internship', 'New York, NY', 'Help design marketing materials.'),
 ('Software Engineering Intern', 'TechCorp', 'Internship', 'Remote', 'Summer internship for computer science students.');

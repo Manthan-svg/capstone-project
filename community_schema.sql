@@ -190,7 +190,7 @@ CREATE POLICY "Admin insert announcements" ON public.announcements FOR INSERT WI
 INSERT INTO public.community_groups (name, description) VALUES
 ('Tech Careers', 'For Deaf professionals navigating the tech industry.'),
 ('Parents of Deaf Children', 'Support and resources for parents.'),
-('ASL Learners', 'Practice signing with others.');
+('ISL Learners', 'Practice signing with others.');
 
 INSERT INTO public.announcements (title, content, author_id)
 -- Using a fallback auth ID for seed, or we can leave author_id null temporarily for announcements, wait, it's NOT NULL? It's not explicitly NOT NULL, but it references auth.users.

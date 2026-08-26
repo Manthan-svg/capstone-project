@@ -1,26 +1,21 @@
-// Normalize landmarks to be relative to the wrist (landmark 0) and scaled
+// Normalize landmarks to be relative to the wrist (landmark 0) and scaled stably
 export function normalizeLandmarks(landmarks) {
   if (!landmarks || landmarks.length === 0) return []
   
   const wrist = landmarks[0]
+  const middleMCP = landmarks[9] // Middle finger metacarpophalangeal joint
   
-  // Find bounding box for scaling
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-  for (const lm of landmarks) {
-    if (lm.x < minX) minX = lm.x
-    if (lm.y < minY) minY = lm.y
-    if (lm.x > maxX) maxX = lm.x
-    if (lm.y > maxY) maxY = lm.y
-  }
-  
-  const width = maxX - minX
-  const height = maxY - minY
-  const scale = Math.max(width, height) || 1 // Avoid divide by zero
+  // Use distance between wrist and middle finger base as a stable scale factor
+  // This is much better than bounding box which changes wildly as fingers move
+  const dx = middleMCP.x - wrist.x
+  const dy = middleMCP.y - wrist.y
+  const dz = middleMCP.z - wrist.z
+  const scale = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1 // Avoid divide by zero
   
   return landmarks.map(lm => ({
     x: (lm.x - wrist.x) / scale,
     y: (lm.y - wrist.y) / scale,
-    z: (lm.z - wrist.z) / scale // Note: Z might not scale linearly but good enough for simple k-NN
+    z: (lm.z - wrist.z) / scale
   }))
 }
 

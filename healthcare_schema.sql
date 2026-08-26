@@ -138,12 +138,12 @@ CREATE POLICY "Users insert chats" ON public.chats FOR INSERT WITH CHECK (auth.u
 -- 10. Seed Data
 -- Seed Hospitals
 INSERT INTO public.hospitals (name, specialty, address, lat, lng, phone) VALUES
-('City General Hospital', 'General Medicine', '123 Main St, New York, NY', 40.7128, -74.0060, '555-0101'),
-('Deaf Care Specialist Center', 'Audiology & ENT', '456 Oak St, Brooklyn, NY', 40.6501, -73.9496, '555-0102'),
-('Metro Cardiac Clinic', 'Cardiology', '789 Pine Ave, Queens, NY', 40.7282, -73.7949, '555-0103'),
-('Sunset Dental', 'Dentistry', '321 Elm St, Bronx, NY', 40.8448, -73.8648, '555-0104'),
-('Valley Orthopedics', 'Orthopedics', '654 Maple Dr, Staten Island, NY', 40.5795, -74.1502, '555-0105'),
-('Clear Vision Eye Center', 'Ophthalmology', '987 Cedar Rd, Jersey City, NJ', 40.7282, -74.0776, '555-0106'),
+('City General Hospital', 'General Medicine', 'Safdarjung Enclave, New Delhi, DL', 40.7128, -74.0060, '555-0101'),
+('Deaf Care Specialist Center', 'Audiology & ENT', 'Bandra West, Mumbai, MH', 40.6501, -73.9496, '555-0102'),
+('Metro Cardiac Clinic', 'Cardiology', 'Jayanagar, Bangalore, KA', 40.7282, -73.7949, '555-0103'),
+('Sunset Dental', 'Dentistry', 'Salt Lake City, Kolkata, WB', 40.8448, -73.8648, '555-0104'),
+('Valley Orthopedics', 'Orthopedics', 'Anna Nagar, Chennai, TN', 40.5795, -74.1502, '555-0105'),
+('Clear Vision Eye Center', 'Ophthalmology', 'Banjara Hills, Hyderabad, TS', 40.7282, -74.0776, '555-0106'),
 ('Women''s Health Institute', 'Gynecology', '147 Birch Blvd, Hoboken, NJ', 40.7440, -74.0324, '555-0107'),
 ('Kids First Pediatrics', 'Pediatrics', '258 Spruce Way, Newark, NJ', 40.7357, -74.1724, '555-0108'),
 ('Mind & Wellness Center', 'Psychiatry', '369 Ash Ct, Paterson, NJ', 40.9168, -74.1718, '555-0109'),

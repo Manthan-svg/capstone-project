@@ -111,7 +111,7 @@ export default function CommunityProfile() {
               />
             </div>
             <FormField label="Location" value={location} onChange={e => setLocation(e.target.value)} placeholder="e.g. New York, NY" />
-            <FormField label="Interests" value={interests} onChange={e => setInterests(e.target.value)} placeholder="e.g. Technology, ASL, Sports" />
+            <FormField label="Interests" value={interests} onChange={e => setInterests(e.target.value)} placeholder="e.g. Technology, ISL, Sports" />
             
             <div className="pt-6 border-t border-border mt-6">
               <h3 className="font-bold text-lg mb-3">Mentorship Program</h3>

@@ -68,6 +68,6 @@ INSERT INTO public.ngos (name, description, focus_area, location, contact_info) 
 ('Deaf Connect', 'Providing sign language interpreters and legal advocacy.', 'Advocacy & Interpretation', 'New York, NY', 'contact@deafconnect.org | 555-0101 (Text)'),
 ('Silent Voices', 'Early intervention programs for deaf children and family support.', 'Education & Family', 'Austin, TX', 'info@silentvoices.org | 555-0202'),
 ('AccessAbility Tech', 'Donates accessibility devices and refurbished hearing aids.', 'Assistive Technology', 'Remote / National', 'tech@accessability.org'),
-('SignBridge Foundation', 'Our own foundation supporting ASL literacy and tech education.', 'Education & Technology', 'San Francisco, CA', 'foundation@signbridge.ai'),
-('Deaf Employment Network', 'Job placement services, resume building, and interview prep in ASL.', 'Employment', 'Chicago, IL', 'jobs@den.org | 555-0303 (Video Relay)'),
+('SignBridge Foundation', 'Our own foundation supporting ISL literacy and tech education.', 'Education & Technology', 'San Francisco, CA', 'foundation@signbridge.ai'),
+('Deaf Employment Network', 'Job placement services, resume building, and interview prep in ISL.', 'Employment', 'Chicago, IL', 'jobs@den.org | 555-0303 (Video Relay)'),
 ('Hear Me Out', 'Mental health counseling provided by deaf therapists.', 'Healthcare', 'Online', 'counseling@hearmeout.org');

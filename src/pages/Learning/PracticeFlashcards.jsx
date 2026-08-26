@@ -101,11 +101,18 @@ export default function PracticeFlashcards() {
           <Card className="absolute w-full h-full backface-hidden rotate-y-180 flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 shadow-card-lg rounded-3xl p-8">
             <p className="text-slate-500 dark:text-slate-400 font-bold uppercase tracking-[0.2em] text-sm mb-6">Did you sign it correctly?</p>
             
-            <div className="w-56 h-56 bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-300 flex items-center justify-center mb-10 shadow-sm relative overflow-hidden">
-               <div className="absolute inset-0 bg-slate-50/50 dark:bg-slate-800/50 flex items-center justify-center backdrop-blur-[1px]">
-                 <PlayCircle className="w-12 h-12 text-slate-300" />
+            <div className="w-56 h-56 bg-slate-900 rounded-2xl border border-slate-300 flex items-center justify-center mb-10 shadow-sm relative overflow-hidden">
+               <video 
+                 src="https://www.w3schools.com/html/mov_bbb.mp4" 
+                 autoPlay 
+                 loop 
+                 muted 
+                 playsInline
+                 className="w-full h-full object-cover"
+               />
+               <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-2 text-center">
+                 <span className="text-xs font-medium text-white shadow-sm">ISL: <b className="capitalize">{currentWord}</b></span>
                </div>
-               <span className="text-sm font-medium text-slate-400 text-center px-6 relative z-10">Video demonstration for <br/><b className="capitalize text-foreground">{currentWord}</b></span>
             </div>
 
             <div className="flex gap-6 w-full max-w-sm px-4">

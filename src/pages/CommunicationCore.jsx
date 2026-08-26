@@ -134,7 +134,7 @@ export default function CommunicationCore() {
         lastVideoTimeRef.current = video.currentTime
         const results = landmarker.detectForVideo(video, performance.now())
         if (results.landmarks && results.landmarks.length > 0) {
-          const match = classifySign(results.landmarks[0], templates, 3.0) // Increased threshold for stability
+          const match = classifySign(results.landmarks[0], templates, 15.0) // Greatly increased threshold for dynamic signs
           if (match) {
             const word = match.word
             if (lastRecognizedRef.current !== word) {

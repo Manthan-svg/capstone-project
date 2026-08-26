@@ -122,7 +122,7 @@ export default function ResumeBuilder() {
 
           <div className="space-y-2">
             <label className="text-sm font-bold text-foreground uppercase tracking-wider">Skills</label>
-            <textarea className="flex w-full rounded-xl border border-input bg-white dark:bg-slate-900 px-4 py-3 text-[15px] shadow-sm min-h-[100px] focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all" placeholder="React, Node.js, ASL Fluency, Project Management..." value={skills} onChange={e => setSkills(e.target.value)} />
+            <textarea className="flex w-full rounded-xl border border-input bg-white dark:bg-slate-900 px-4 py-3 text-[15px] shadow-sm min-h-[100px] focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all" placeholder="React, Node.js, ISL Fluency, Project Management..." value={skills} onChange={e => setSkills(e.target.value)} />
           </div>
 
           <div className="flex flex-col md:flex-row items-center justify-between gap-6 pt-6 border-t border-border mt-4">
