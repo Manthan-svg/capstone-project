@@ -1,20 +1,58 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import Webcam from 'react-webcam'
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
-import { RefreshCw, Check, X, ArrowRight, VideoOff } from 'lucide-react'
+import { 
+  RefreshCw, 
+  Check, 
+  X, 
+  ArrowRight, 
+  VideoOff, 
+  Camera, 
+  Sparkles, 
+  Layers 
+} from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { getAllTemplates } from '../../lib/db'
+import { useMediaPipe } from '../../hooks/useMediaPipe'
+import { 
+  normalizeLandmarks, 
+  classifySign, 
+  verifySpecificSign, 
+  drawHandLandmarks 
+} from '../../lib/classifier'
 
 export default function PracticeFlashcards() {
   const [deck, setDeck] = useState([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isFlipped, setIsFlipped] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [practiceMode, setPracticeMode] = useState('camera') // 'camera' | 'flashcard'
   
   const [stats, setStats] = useState({ known: 0, learning: 0 })
+  
+  // Camera & MediaPipe states
+  const webcamRef = useRef(null)
+  const canvasRef = useRef(null)
+  const { landmarker, isLoaded: isMediaPipeLoaded } = useMediaPipe()
+  const requestRef = useRef()
+  const lastVideoTimeRef = useRef(-1)
+  
+  // AI Verification state for current card
+  const [verificationState, setVerificationState] = useState({
+    status: 'waiting', // 'waiting' | 'correct' | 'wrong'
+    detectedWord: null,
+    confidence: 0,
+    message: 'Perform sign in front of camera'
+  })
+  const [hasScoredCurrent, setHasScoredCurrent] = useState(false)
+  const [handsInFrameCount, setHandsInFrameCount] = useState(0)
 
   useEffect(() => {
     loadEnrolledSigns()
+    return () => {
+      if (requestRef.current) cancelAnimationFrame(requestRef.current)
+    }
   }, [])
 
   const loadEnrolledSigns = async () => {
@@ -22,20 +60,121 @@ export default function PracticeFlashcards() {
     const { data } = await supabase.auth.getUser()
     if (data?.user) {
       const templates = await getAllTemplates(data.user.id)
+      const normalizedData = templates.map(t => ({
+        ...t,
+        landmarksList: t.landmarksList.map(normalizeLandmarks)
+      }))
       // Shuffle templates
-      setDeck(templates.sort(() => Math.random() - 0.5))
+      setDeck(normalizedData.sort(() => Math.random() - 0.5))
     }
     setIsLoading(false)
   }
 
   const currentTemplate = deck[currentIndex]
   const isComplete = currentIndex >= deck.length && deck.length > 0
+  const currentWord = currentTemplate?.word
 
-  const handleNext = (knewIt) => {
-    setStats(prev => ({
-      known: knewIt ? prev.known + 1 : prev.known,
-      learning: !knewIt ? prev.learning + 1 : prev.learning
-    }))
+  // Reset verification whenever current card changes
+  useEffect(() => {
+    setVerificationState({
+      status: 'waiting',
+      detectedWord: null,
+      confidence: 0,
+      message: currentWord ? `Position hands and sign "${currentWord}"` : ''
+    })
+    setHasScoredCurrent(false)
+  }, [currentIndex, currentWord])
+
+  // Continuous Camera Loop for AI Sign Verification
+  const detectFrame = useCallback(() => {
+    if (
+      practiceMode === 'camera' &&
+      landmarker && 
+      webcamRef.current && 
+      webcamRef.current.video && 
+      currentWord
+    ) {
+      const video = webcamRef.current.video
+      
+      if (video.readyState >= 2 && video.currentTime !== lastVideoTimeRef.current) {
+        lastVideoTimeRef.current = video.currentTime
+        const results = landmarker.detectForVideo(video, performance.now())
+        
+        // 1. Draw hand landmarks onto canvas
+        if (canvasRef.current) {
+          const canvas = canvasRef.current
+          const ctx = canvas.getContext('2d')
+          if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+            canvas.width = video.videoWidth || 640
+            canvas.height = video.videoHeight || 480
+          }
+          if (results.landmarks && results.landmarks.length > 0) {
+            drawHandLandmarks(ctx, results.landmarks, canvas.width, canvas.height, true)
+            setHandsInFrameCount(results.landmarks.length)
+          } else {
+            ctx.clearRect(0, 0, canvas.width, canvas.height)
+            setHandsInFrameCount(0)
+          }
+        }
+
+        // 2. Classify gesture against target word
+        if (results.landmarks && results.landmarks.length > 0) {
+          const hand = results.landmarks[0]
+          const targetCheck = verifySpecificSign(hand, currentWord, deck, 15.0)
+          const generalCheck = classifySign(hand, deck, 15.0)
+
+          if (targetCheck.isMatch) {
+            setVerificationState({
+              status: 'correct',
+              detectedWord: currentWord,
+              confidence: targetCheck.confidence,
+              message: `RIGHT! You signed "${currentWord}" correctly!`
+            })
+
+            // Increment known score if not yet scored for this card
+            if (!hasScoredCurrent) {
+              setStats(prev => ({ ...prev, known: prev.known + 1 }))
+              setHasScoredCurrent(true)
+            }
+          } else if (generalCheck && generalCheck.word.toLowerCase() !== currentWord.toLowerCase()) {
+            setVerificationState({
+              status: 'wrong',
+              detectedWord: generalCheck.word,
+              confidence: generalCheck.confidence,
+              message: `WRONG! AI detected "${generalCheck.word}" instead of "${currentWord}".`
+            })
+          } else {
+            setVerificationState({
+              status: 'waiting',
+              detectedWord: null,
+              confidence: 0,
+              message: `Analyzing gesture... Perform "${currentWord}".`
+            })
+          }
+        }
+      }
+    }
+    
+    requestRef.current = requestAnimationFrame(detectFrame)
+  }, [practiceMode, landmarker, currentWord, deck, hasScoredCurrent])
+
+  useEffect(() => {
+    if (isMediaPipeLoaded && practiceMode === 'camera') {
+      requestRef.current = requestAnimationFrame(detectFrame)
+    }
+    return () => {
+      if (requestRef.current) cancelAnimationFrame(requestRef.current)
+    }
+  }, [isMediaPipeLoaded, practiceMode, detectFrame])
+
+  // Move to the next sign
+  const handleNext = (knewIt = true) => {
+    if (practiceMode === 'flashcard' || !hasScoredCurrent) {
+      setStats(prev => ({
+        known: knewIt ? prev.known + 1 : prev.known,
+        learning: !knewIt ? prev.learning + 1 : prev.learning
+      }))
+    }
     setIsFlipped(false)
     setCurrentIndex(prev => prev + 1)
   }
@@ -45,23 +184,32 @@ export default function PracticeFlashcards() {
     setCurrentIndex(0)
     setIsFlipped(false)
     setStats({ known: 0, learning: 0 })
+    setHasScoredCurrent(false)
   }
 
   if (isLoading) {
-    return <div className="text-center mt-20">Loading your enrolled signs...</div>
+    return (
+      <div className="flex flex-col items-center justify-center h-80 space-y-4">
+        <div className="h-10 w-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+        <p className="text-muted-foreground font-semibold">Loading your enrolled signs...</p>
+      </div>
+    )
   }
 
   if (deck.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] animate-fade-in-up">
-        <Card className="max-w-md w-full text-center p-10 shadow-card-lg border-indigo-50 bg-white">
-          <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-6">
+        <Card className="max-w-md w-full text-center p-10 shadow-card-lg border-indigo-50 bg-white dark:bg-slate-900">
+          <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-6">
             <VideoOff className="w-10 h-10 text-slate-400" />
           </div>
           <CardTitle className="text-2xl font-bold mb-4">No Signs Enrolled</CardTitle>
-          <p className="text-muted-foreground mb-8">
-            You haven't enrolled any signs yet. Please go to the <b>Sign Enrollment</b> section to record yourself signing words before you can practice them here!
+          <p className="text-muted-foreground mb-8 text-sm">
+            You haven't enrolled any signs yet. Please go to the <b>Sign Enrollment</b> section to record yourself signing words before practicing here!
           </p>
+          <Button onClick={() => window.location.href = '/enroll'} className="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl">
+            Go to Sign Enrollment ➔
+          </Button>
         </Card>
       </div>
     )
@@ -70,28 +218,28 @@ export default function PracticeFlashcards() {
   if (isComplete) {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-200px)] animate-fade-in-up">
-        <Card className="max-w-md w-full text-center p-10 shadow-card-lg border-indigo-50 dark:border-indigo-900/30 bg-gradient-to-b from-white to-slate-50/50">
+        <Card className="max-w-md w-full text-center p-10 shadow-card-lg border-indigo-50 dark:border-indigo-900/30 bg-white dark:bg-slate-900">
           <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm border border-emerald-200">
             <Check className="w-10 h-10 text-emerald-600" />
           </div>
-          <CardTitle className="text-3xl font-black mb-2 text-foreground">Practice Complete!</CardTitle>
-          <p className="text-muted-foreground mb-8 font-medium">Great job reviewing your vocabulary today.</p>
+          <CardTitle className="text-3xl font-black mb-2 text-foreground">Practice Session Complete!</CardTitle>
+          <p className="text-muted-foreground mb-8 font-medium">Outstanding work practicing your sign language vocabulary!</p>
           
           <div className="flex justify-center gap-12 mb-10">
             <div className="text-emerald-600 flex flex-col items-center">
-              <div className="w-16 h-16 rounded-2xl bg-emerald-50 flex items-center justify-center mb-2 shadow-sm border border-emerald-100">
+              <div className="w-16 h-16 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center mb-2 shadow-sm border border-emerald-100">
                 <p className="text-3xl font-black">{stats.known}</p>
               </div>
-              <p className="text-xs font-bold uppercase tracking-widest text-emerald-800">Known</p>
+              <p className="text-xs font-bold uppercase tracking-widest text-emerald-800 dark:text-emerald-300">Right / Known</p>
             </div>
             <div className="text-amber-600 flex flex-col items-center">
-               <div className="w-16 h-16 rounded-2xl bg-amber-50 flex items-center justify-center mb-2 shadow-sm border border-amber-100">
+               <div className="w-16 h-16 rounded-2xl bg-amber-50 dark:bg-amber-950/40 flex items-center justify-center mb-2 shadow-sm border border-amber-100">
                 <p className="text-3xl font-black">{stats.learning}</p>
               </div>
-              <p className="text-xs font-bold uppercase tracking-widest text-amber-800">Learning</p>
+              <p className="text-xs font-bold uppercase tracking-widest text-amber-800 dark:text-amber-300">Learning</p>
             </div>
           </div>
-          <Button onClick={restart} className="w-full flex items-center justify-center gap-2 h-14 rounded-xl text-lg font-bold bg-indigo-600 hover:bg-indigo-700 shadow-md transition-transform active:scale-95" size="lg">
+          <Button onClick={restart} className="w-full flex items-center justify-center gap-2 h-14 rounded-xl text-lg font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md transition-transform active:scale-95" size="lg">
             <RefreshCw className="w-5 h-5" /> Practice Again
           </Button>
         </Card>
@@ -99,72 +247,249 @@ export default function PracticeFlashcards() {
     )
   }
 
-  const currentWord = currentTemplate.word
-  const videoUrl = currentTemplate.videoBlob ? URL.createObjectURL(currentTemplate.videoBlob) : null
+  const videoUrl = currentTemplate?.videoBlob ? URL.createObjectURL(currentTemplate.videoBlob) : null
 
   return (
-    <div className="max-w-2xl mx-auto space-y-8 animate-fade-in-up">
-      <div className="flex justify-between items-center text-sm font-bold bg-white dark:bg-slate-900 p-4 rounded-2xl shadow-sm border border-border">
-        <span className="text-foreground px-4 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-full">Progress: {currentIndex + 1} / {deck.length}</span>
-        <div className="flex gap-4">
-          <span className="text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-100">Known: {stats.known}</span>
-          <span className="text-amber-700 bg-amber-50 px-3 py-1.5 rounded-full border border-amber-100">Learning: {stats.learning}</span>
+    <div className="max-w-4xl mx-auto space-y-6 animate-fade-in-up pb-10">
+      
+      {/* Top Controls & Status Bar */}
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white dark:bg-slate-900 p-4 rounded-2xl shadow-sm border border-border">
+        
+        {/* Progress & Scores */}
+        <div className="flex items-center gap-4 text-sm font-bold">
+          <span className="text-foreground px-4 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-full">
+            Progress: {currentIndex + 1} / {deck.length}
+          </span>
+          <span className="text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 px-3 py-1.5 rounded-full border border-emerald-100">
+            Right: {stats.known}
+          </span>
+          <span className="text-amber-700 bg-amber-50 dark:bg-amber-950/40 px-3 py-1.5 rounded-full border border-amber-100">
+            Learning: {stats.learning}
+          </span>
         </div>
+
+        {/* Practice Mode Switcher */}
+        <div className="flex gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+          <button
+            onClick={() => setPracticeMode('camera')}
+            className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
+              practiceMode === 'camera'
+                ? 'bg-indigo-600 text-white shadow-md'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Camera className="w-3.5 h-3.5" /> AI Camera Mode (Right/Wrong)
+          </button>
+          <button
+            onClick={() => setPracticeMode('flashcard')}
+            className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
+              practiceMode === 'flashcard'
+                ? 'bg-indigo-600 text-white shadow-md'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" /> Classic Flashcards
+          </button>
+        </div>
+
       </div>
 
-      <div className="w-full bg-slate-200 h-3 rounded-full overflow-hidden shadow-inner">
-        <div className="bg-indigo-600 h-full transition-all duration-500 ease-out rounded-full relative" style={{ width: `${((currentIndex) / deck.length) * 100}%` }}>
-           <div className="absolute inset-0 bg-white dark:bg-slate-900/20 animate-pulse"></div>
-        </div>
+      {/* Progress Bar */}
+      <div className="w-full bg-slate-200 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden shadow-inner">
+        <div 
+          className="bg-indigo-600 h-full transition-all duration-500 ease-out rounded-full" 
+          style={{ width: `${((currentIndex + 1) / deck.length) * 100}%` }}
+        />
       </div>
 
-      <div 
-        className="relative w-full aspect-[4/3] perspective-1000 cursor-pointer group" 
-        onClick={() => setIsFlipped(!isFlipped)}
-      >
-        <div className={`w-full h-full transition-transform duration-700 transform-style-preserve-3d relative ${isFlipped ? 'rotate-y-180' : ''}`}>
+      {/* Mode 1: AI CAMERA PRACTICE DASHBOARD */}
+      {practiceMode === 'camera' ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
           
-          {/* Front of Card */}
-          <Card className="absolute w-full h-full backface-hidden flex flex-col items-center justify-center border border-indigo-100 dark:border-indigo-900/50 shadow-card-lg bg-white dark:bg-slate-900 group-hover:shadow-card-xl transition-shadow rounded-3xl">
-            <p className="text-indigo-400 font-bold uppercase tracking-[0.2em] text-sm mb-6 bg-indigo-50 dark:bg-indigo-900/20 px-4 py-1.5 rounded-full">Sign this word</p>
-            <h2 className="text-7xl font-black capitalize text-foreground drop-shadow-sm">{currentWord}</h2>
-            <p className="text-muted-foreground mt-12 text-sm font-medium flex items-center gap-2"><ArrowRight className="w-4 h-4" /> Click card to flip</p>
+          {/* Left: Camera Feed with Hand Skeleton & Live Verification */}
+          <Card className="flex flex-col shadow-card-md border-indigo-100 dark:border-indigo-900/40 overflow-hidden">
+            <CardHeader className="py-4 px-6 bg-white dark:bg-slate-900 border-b border-border flex flex-row items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 block">Sign This Word</span>
+                <CardTitle className="text-3xl font-black capitalize text-foreground mt-0.5">{currentWord}</CardTitle>
+              </div>
+              <div className="flex items-center gap-2 text-xs font-bold px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-600 dark:text-slate-300">
+                <span className={`w-2 h-2 rounded-full ${handsInFrameCount > 0 ? 'bg-emerald-500 animate-ping' : 'bg-slate-400'}`} />
+                {handsInFrameCount > 0 ? 'Hand Detected' : 'Show Hand'}
+              </div>
+            </CardHeader>
+
+            <CardContent className="flex-1 p-0 relative bg-black flex items-center justify-center min-h-[340px]">
+              {!isMediaPipeLoaded ? (
+                <div className="text-center text-white p-6">
+                  <div className="h-8 w-8 border-4 border-indigo-400 border-t-white rounded-full animate-spin mx-auto mb-2" />
+                  <p className="text-sm font-semibold">Loading AI Hand Tracker...</p>
+                </div>
+              ) : (
+                <>
+                  <Webcam
+                    ref={webcamRef}
+                    audio={false}
+                    className="absolute inset-0 w-full h-full object-cover transform scale-x-[-1]"
+                  />
+                  <canvas
+                    ref={canvasRef}
+                    className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+                  />
+                </>
+              )}
+
+              {/* Real-time Right / Wrong verdict overlay */}
+              <div className="absolute inset-x-3 bottom-3 z-20">
+                <div className={`p-3.5 rounded-xl backdrop-blur-md border shadow-lg transition-all ${
+                  verificationState.status === 'correct'
+                    ? 'bg-emerald-900/90 border-emerald-400 text-white'
+                    : verificationState.status === 'wrong'
+                    ? 'bg-rose-900/90 border-rose-400 text-white'
+                    : 'bg-black/75 border-slate-700 text-slate-200'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${
+                        verificationState.status === 'correct'
+                          ? 'bg-emerald-500 text-white'
+                          : verificationState.status === 'wrong'
+                          ? 'bg-rose-500 text-white'
+                          : 'bg-slate-700 text-slate-300'
+                      }`}>
+                        {verificationState.status === 'correct' ? '✓' : verificationState.status === 'wrong' ? '✕' : '●'}
+                      </div>
+                      <p className="text-sm font-black leading-tight">
+                        {verificationState.message}
+                      </p>
+                    </div>
+                    {verificationState.confidence > 0 && (
+                      <span className="text-xs font-black bg-white/20 px-2 py-1 rounded">
+                        {verificationState.confidence}%
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+
+            <CardFooter className="py-4 px-6 bg-white dark:bg-slate-900 border-t border-border flex justify-between items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleNext(false)}
+                className="font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100"
+              >
+                Skip Word
+              </Button>
+              
+              <Button
+                size="default"
+                onClick={() => handleNext(true)}
+                className={`font-bold px-6 shadow-md ${
+                  verificationState.status === 'correct'
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white animate-pulse'
+                    : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                }`}
+              >
+                Next Sign ➔
+              </Button>
+            </CardFooter>
           </Card>
 
-          {/* Back of Card */}
-          <Card className="absolute w-full h-full backface-hidden rotate-y-180 flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 shadow-card-lg rounded-3xl p-8">
-            <p className="text-slate-500 dark:text-slate-400 font-bold uppercase tracking-[0.2em] text-sm mb-6">Did you sign it correctly?</p>
-            
-            <div className="w-56 h-56 bg-slate-900 rounded-2xl border border-slate-300 flex items-center justify-center mb-10 shadow-sm relative overflow-hidden">
-               {videoUrl ? (
-                 <video 
-                   src={videoUrl} 
-                   autoPlay 
-                   loop 
-                   muted 
-                   playsInline
-                   className="w-full h-full object-cover transform scale-x-[-1]"
-                 />
-               ) : (
-                 <p className="text-white">No video saved</p>
-               )}
-               <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-2 text-center">
-                 <span className="text-xs font-medium text-white shadow-sm">Your Enrolled Sign: <b className="capitalize">{currentWord}</b></span>
-               </div>
-            </div>
+          {/* Right: Enrolled Sign Reference & Video Guide */}
+          <Card className="flex flex-col shadow-card-md border-indigo-100 dark:border-indigo-900/40">
+            <CardHeader className="py-4 px-6 bg-white dark:bg-slate-900 border-b border-border">
+              <CardTitle className="text-base font-bold flex items-center gap-2 text-foreground">
+                <Sparkles className="w-4 h-4 text-indigo-500" />
+                <span>Reference: Your Enrolled Sign</span>
+              </CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Compare your live posture with how you recorded "{currentWord}".
+              </p>
+            </CardHeader>
 
-            <div className="flex gap-6 w-full max-w-sm px-4">
-              <Button size="lg" className="flex-1 h-16 rounded-2xl text-lg font-bold bg-white dark:bg-slate-900 text-rose-600 border-2 border-rose-100 hover:bg-rose-50 hover:border-rose-200 shadow-sm transition-transform active:scale-95" onClick={(e) => { e.stopPropagation(); handleNext(false); }}>
-                <X className="w-6 h-6 mr-2" /> No, I didn't
-              </Button>
-              <Button size="lg" className="flex-1 h-16 rounded-2xl text-lg font-bold bg-emerald-500 hover:bg-emerald-600 text-white shadow-md transition-transform active:scale-95 border-b-4 border-emerald-700 hover:border-emerald-800" onClick={(e) => { e.stopPropagation(); handleNext(true); }}>
-                <Check className="w-6 h-6 mr-2" /> Yes, I did!
-              </Button>
-            </div>
+            <CardContent className="flex-1 p-6 flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-800/50">
+              <div className="w-full aspect-video max-w-sm bg-slate-900 rounded-2xl overflow-hidden shadow-md relative border border-slate-300 dark:border-slate-700 flex items-center justify-center">
+                {videoUrl ? (
+                  <video 
+                    src={videoUrl} 
+                    autoPlay 
+                    loop 
+                    muted 
+                    playsInline
+                    className="w-full h-full object-cover transform scale-x-[-1]"
+                  />
+                ) : (
+                  <p className="text-white text-xs">No video recorded</p>
+                )}
+                <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-2 text-center">
+                  <span className="text-xs font-medium text-white">Target Sign: <b className="capitalize">{currentWord}</b></span>
+                </div>
+              </div>
+
+              <div className="mt-6 w-full space-y-2 text-xs text-muted-foreground bg-white dark:bg-slate-900 p-4 rounded-xl border border-border">
+                <h4 className="font-bold text-foreground">How AI verifies your sign:</h4>
+                <p>1. Camera captures your hand positions in real time.</p>
+                <p>2. Compares wrist and finger angles against your enrolled reference.</p>
+                <p>3. Flags <b className="text-emerald-600">RIGHT</b> when matching, or <b className="text-rose-600">WRONG</b> to help you improve.</p>
+              </div>
+            </CardContent>
           </Card>
 
         </div>
-      </div>
+      ) : (
+
+        /* Mode 2: CLASSIC FLASHCARD MODE */
+        <div 
+          className="relative w-full aspect-[4/3] max-w-2xl mx-auto perspective-1000 cursor-pointer group" 
+          onClick={() => setIsFlipped(!isFlipped)}
+        >
+          <div className={`w-full h-full transition-transform duration-700 transform-style-preserve-3d relative ${isFlipped ? 'rotate-y-180' : ''}`}>
+            
+            {/* Front of Card */}
+            <Card className="absolute w-full h-full backface-hidden flex flex-col items-center justify-center border border-indigo-100 dark:border-indigo-900/50 shadow-card-lg bg-white dark:bg-slate-900 group-hover:shadow-card-xl transition-shadow rounded-3xl">
+              <p className="text-indigo-400 font-bold uppercase tracking-[0.2em] text-sm mb-6 bg-indigo-50 dark:bg-indigo-900/20 px-4 py-1.5 rounded-full">Sign this word</p>
+              <h2 className="text-7xl font-black capitalize text-foreground drop-shadow-sm">{currentWord}</h2>
+              <p className="text-muted-foreground mt-12 text-sm font-medium flex items-center gap-2"><ArrowRight className="w-4 h-4" /> Click card to flip & check reference</p>
+            </Card>
+
+            {/* Back of Card */}
+            <Card className="absolute w-full h-full backface-hidden rotate-y-180 flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 shadow-card-lg rounded-3xl p-8">
+              <p className="text-slate-500 dark:text-slate-400 font-bold uppercase tracking-[0.2em] text-sm mb-6">Did you sign it correctly?</p>
+              
+              <div className="w-56 h-56 bg-slate-900 rounded-2xl border border-slate-300 flex items-center justify-center mb-8 shadow-sm relative overflow-hidden">
+                {videoUrl ? (
+                  <video 
+                    src={videoUrl} 
+                    autoPlay 
+                    loop 
+                    muted 
+                    playsInline
+                    className="w-full h-full object-cover transform scale-x-[-1]"
+                  />
+                ) : (
+                  <p className="text-white">No video saved</p>
+                )}
+                <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-2 text-center">
+                  <span className="text-xs font-medium text-white shadow-sm">Your Enrolled Sign: <b className="capitalize">{currentWord}</b></span>
+                </div>
+              </div>
+
+              <div className="flex gap-6 w-full max-w-sm px-4">
+                <Button size="lg" className="flex-1 h-14 rounded-2xl text-base font-bold bg-white dark:bg-slate-900 text-rose-600 border-2 border-rose-100 hover:bg-rose-50 shadow-sm" onClick={(e) => { e.stopPropagation(); handleNext(false); }}>
+                  <X className="w-5 h-5 mr-1" /> No, I didn't
+                </Button>
+                <Button size="lg" className="flex-1 h-14 rounded-2xl text-base font-bold bg-emerald-500 hover:bg-emerald-600 text-white shadow-md border-b-4 border-emerald-700" onClick={(e) => { e.stopPropagation(); handleNext(true); }}>
+                  <Check className="w-5 h-5 mr-1" /> Yes, I did!
+                </Button>
+              </div>
+            </Card>
+
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
