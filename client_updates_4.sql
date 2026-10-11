@@ -169,56 +169,77 @@ INSERT INTO public.schemes (name, description, eligibility, how_to_apply) VALUES
   'Apply online via the Divyang Sahayak portal or submit applications at the MSDFDC district office located in each Maharashtra district.'
 );
 
--- Update NGOs table with prominent Maharashtra & National Deaf Organizations
+-- Update NGOs table with prominent Indian Deaf & Speech Healthcare Organizations
 DELETE FROM public.ngos;
 
 INSERT INTO public.ngos (name, description, focus_area, location, contact_info) VALUES
 (
   'Ali Yavar Jung National Institute of Speech and Hearing Disabilities (AYJNISHD)',
-  'Apex national autonomous institute under DEPwD providing clinical diagnosis, speech therapy, cochlear implant rehabilitation, and ISL interpreter courses.',
-  'Healthcare, Audiology & Higher Education',
-  'Bandra West, Mumbai, Maharashtra',
+  'Apex national autonomous institute under DEPwD providing clinical diagnosis, audiology testing, cochlear implant rehabilitation, and speech therapy.',
+  'Healthcare, Audiology & Speech Therapy',
+  'Bandra West, Mumbai, Maharashtra (India)',
   '022-2640-0211 | ayjnihh-mum@nic.in | ayjnihh.nic.in'
+),
+(
+  'All India Institute of Speech and Hearing (AIISH)',
+  'Premier national autonomous institute under Ministry of Health and Family Welfare specializing in clinical audiology, hearing aids, and communicative disorders care.',
+  'Clinical Testing & Audiology Healthcare',
+  'Manasagangothri, Mysuru, Karnataka (India)',
+  '0821-251-4449 | director@aiishmysore.in | aiishmysore.in'
 ),
 (
   'National Association of the Deaf (NAD) - Maharashtra',
   'Premier deaf-led organization working for legal advocacy, rights under RPwD Act 2016, and promoting Indian Sign Language recognition across Maharashtra.',
   'Advocacy & Legal Rights',
-  'Dadar West, Mumbai, Maharashtra',
+  'Dadar West, Mumbai, Maharashtra (India)',
   'nad.maharashtra@nadindia.org | 98110-12345 (Text/WhatsApp)'
 ),
 (
   'Deaf Enabled Foundation (DEF)',
-  'Empowering deaf youth through vocational computer training, English literacy, mobile apps, and job placement assistance across Maharashtra.',
+  'Empowering deaf youth through vocational computer training, English literacy, mobile apps, and job placement assistance across Maharashtra and India.',
   'Skill Training & Employment',
-  'Shivaji Nagar, Pune & Vashi, Navi Mumbai',
+  'Shivaji Nagar, Pune & Vashi, Navi Mumbai (India)',
   'contact@def.org.in | 020-2565-1122 | def.org.in'
 ),
 (
   'All India Federation of the Deaf (AIFD) - Western Outreach',
-  'National federation uniting regional deaf welfare associations, organizing cultural conferences, and providing matrimonial and vocational support.',
-  'Community Welfare & Culture',
-  'Fort, Mumbai, Maharashtra',
+  'National federation uniting regional deaf welfare associations, conducting free audiology camps, cultural conferences, and matrimonial support.',
+  'Community Welfare & Health Camps',
+  'Fort, Mumbai, Maharashtra (India)',
   'aifd.west@deafindia.org | 022-2261-4400'
 ),
 (
+  'Indian Sign Language Research and Training Centre (ISLRTC)',
+  'Autonomous central body standardizing Indian Sign Language (ISL) and training certified interpreters for courts, hospitals, and national media.',
+  'ISL Standards & Interpreter Certification',
+  'Okhla, New Delhi (India)',
+  'islrtcnewdelhi@gmail.com | 011-2638-7558 | islrtc.nic.in'
+),
+(
+  'Balkalyan Sanstha - Special Care Rehabilitation',
+  'Non-profit rehabilitation center offering specialized sensory therapy, physical fitness, and health development for deaf and disabled children in Maharashtra.',
+  'Pediatric Rehabilitation & Health Care',
+  'Raj Bhavan Road, Pune, Maharashtra (India)',
+  'info@balkalyansanstha.org | 020-2565-4560'
+),
+(
   'Yuva Deaf Association',
-  'Youth-focused community group organizing ISL workshops, deaf sports leagues, accessible tech hackathons, and youth leadership mentorship.',
+  'Youth-focused community group organizing ISL workshops, deaf sports leagues, accessible tech hackathons, and youth leadership mentorship in Maharashtra.',
   'Youth Leadership & Sports',
-  'Kothrud, Pune, Maharashtra',
+  'Kothrud, Pune, Maharashtra (India)',
   'yuvadeaf.pune@gmail.com | 98901-23456 (Video Call)'
 ),
 (
   'v-shesh Learning & Accessibility Services',
-  'Award-winning impact enterprise training and placing educated deaf professionals into top banking, technology, and corporate careers.',
+  'Award-winning impact enterprise training and placing educated deaf professionals into top banking, technology, and corporate careers across India.',
   'Corporate Inclusion & Jobs',
-  'Vashi, Navi Mumbai, Maharashtra',
+  'Vashi, Navi Mumbai, Maharashtra & Bengaluru (India)',
   'contact@v-shesh.com | 022-4972-8800 | v-shesh.com'
 ),
 (
-  'SignBridge Foundation',
+  'SignBridge Foundation India',
   'Our dedicated technology foundation offering free ISL AI communication tools, digital literacy bootcamps, and emergency sign translation for deaf citizens.',
   'AI Assistive Tech & Education',
-  'Hinjawadi, Pune, Maharashtra',
+  'Hinjawadi, Pune, Maharashtra (India)',
   'foundation@signbridge.ai | signbridge.ai'
 );
