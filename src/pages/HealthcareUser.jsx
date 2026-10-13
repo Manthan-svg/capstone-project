@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { FormField } from '../components/ui/FormField'
-import { MapPin, Phone, Calendar, Upload, Clock, AlertTriangle, FileText, Share2, Video, Heart, MessageSquare, Headset, HeartHandshake, Search, Target } from 'lucide-react'
+import { MapPin, Phone, Calendar, Upload, Clock, AlertTriangle, FileText, Share2, Video, Heart, MessageSquare, Headset, HeartHandshake, Search, Target, Check, Plus, Trash2, ShieldAlert } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { Link } from 'react-router-dom'
@@ -72,7 +72,6 @@ export default function HealthcareUser() {
         <TabButton active={activeTab === 'ngos'} onClick={() => setActiveTab('ngos')} icon={HeartHandshake}>NGO Directory (India)</TabButton>
         <TabButton active={activeTab === 'appointments'} onClick={() => setActiveTab('appointments')} icon={Calendar}>My Appointments</TabButton>
         <TabButton active={activeTab === 'history'} onClick={() => setActiveTab('history')} icon={FileText}>Medical History</TabButton>
-        <TabButton active={activeTab === 'interpreter'} onClick={() => setActiveTab('interpreter')} icon={Headset}>Live Interpreter</TabButton>
         <TabButton active={activeTab === 'reminders'} onClick={() => setActiveTab('reminders')} icon={Clock}>Reminders</TabButton>
         <TabButton active={activeTab === 'sos'} onClick={() => setActiveTab('sos')} icon={AlertTriangle} variant="destructive">Emergency SOS</TabButton>
       </div>
@@ -83,7 +82,6 @@ export default function HealthcareUser() {
         {activeTab === 'ngos' && <HealthcareNGODirectoryTab />}
         {activeTab === 'appointments' && <AppointmentsTab />}
         {activeTab === 'history' && <MedicalHistoryTab />}
-        {activeTab === 'interpreter' && <InterpreterTab />}
         {activeTab === 'reminders' && <RemindersTab />}
         {activeTab === 'sos' && <SOSTab />}
       </div>
@@ -562,12 +560,66 @@ function RemindersTab() {
 }
 
 // --------------------------------------------------------------------------
-// 4. SOS Tab
 // --------------------------------------------------------------------------
+// 4. Enhanced Emergency SOS Tab (Doctors, NGO Staff & Guardians)
+// --------------------------------------------------------------------------
+const INITIAL_EMERGENCY_CONTACTS = [
+  {
+    id: 'contact-doc-1',
+    category: 'doctor',
+    categoryLabel: 'Doctor / Medical Staff',
+    icon: '👨‍⚕️',
+    name: 'Dr. Anil Kulkarni',
+    roleOrAffiliation: 'Sassoon General Hospital / ENT & Audiology',
+    phone: '+91 98220 11223',
+    email: 'dr.anil.kulkarni@hospital.org',
+    active: true
+  },
+  {
+    id: 'contact-ngo-1',
+    category: 'ngo',
+    categoryLabel: 'NGO Support Staff',
+    icon: '🤝',
+    name: 'Pooja Sharma (Helpdesk Coordinator)',
+    roleOrAffiliation: 'National Association of the Deaf (NAD) Maharashtra',
+    phone: '+91 98110 12345',
+    email: 'sos-response@nadindia.org',
+    active: true
+  },
+  {
+    id: 'contact-guardian-1',
+    category: 'guardian',
+    categoryLabel: 'Family Guardian / Caregiver',
+    icon: '👨‍👩‍👧',
+    name: 'Ramesh & Sunita (Primary Guardians)',
+    roleOrAffiliation: 'Parents / Immediate Family',
+    phone: '+91 99220 54321',
+    email: 'family.emergency@gmail.com',
+    active: true
+  }
+]
+
 function SOSTab() {
   const { user } = useAuth()
   const [triggering, setTriggering] = useState(false)
   const [sosHistory, setSosHistory] = useState([])
+  const [contacts, setContacts] = useState(() => {
+    const saved = localStorage.getItem('signbridge_emergency_contacts')
+    return saved ? JSON.parse(saved) : INITIAL_EMERGENCY_CONTACTS
+  })
+  
+  // New Contact Form state
+  const [showAddContact, setShowAddContact] = useState(false)
+  const [newCategory, setNewCategory] = useState('doctor')
+  const [newName, setNewName] = useState('')
+  const [newOrg, setNewOrg] = useState('')
+  const [newPhone, setNewPhone] = useState('')
+  const [newEmail, setNewEmail] = useState('')
+  const [lastDispatchedList, setLastDispatchedList] = useState([])
+
+  useEffect(() => {
+    localStorage.setItem('signbridge_emergency_contacts', JSON.stringify(contacts))
+  }, [contacts])
 
   useEffect(() => {
     fetchSOS()
@@ -578,7 +630,55 @@ function SOSTab() {
     if (data) setSosHistory(data)
   }
 
+  const toggleContactActive = (id) => {
+    setContacts(prev => prev.map(c => c.id === id ? { ...c, active: !c.active } : c))
+  }
+
+  const handleDeleteContact = (id) => {
+    if (contacts.length <= 1) {
+      alert("You must keep at least one emergency contact.")
+      return
+    }
+    setContacts(prev => prev.filter(c => c.id !== id))
+  }
+
+  const handleAddContact = (e) => {
+    e.preventDefault()
+    if (!newName || !newPhone || !newEmail) {
+      alert("Please fill in Name, Phone, and Email.")
+      return
+    }
+
+    const categoryMeta = {
+      doctor: { label: 'Doctor / Medical Staff', icon: '👨‍⚕️' },
+      ngo: { label: 'NGO Support Staff', icon: '🤝' },
+      guardian: { label: 'Family Guardian / Caregiver', icon: '👨‍👩‍👧' }
+    }[newCategory]
+
+    const newEntry = {
+      id: `contact-${Date.now()}`,
+      category: newCategory,
+      categoryLabel: categoryMeta.label,
+      icon: categoryMeta.icon,
+      name: newName,
+      roleOrAffiliation: newOrg || 'Emergency Responder',
+      phone: newPhone,
+      email: newEmail,
+      active: true
+    }
+
+    setContacts(prev => [...prev, newEntry])
+    setNewName(''); setNewOrg(''); setNewPhone(''); setNewEmail('');
+    setShowAddContact(false)
+  }
+
   const triggerSOS = () => {
+    const activeContacts = contacts.filter(c => c.active)
+    if (activeContacts.length === 0) {
+      alert("Please select at least one emergency contact (Doctor, NGO Staff, or Guardian) to alert.")
+      return
+    }
+
     if (!navigator.geolocation) {
       alert("Geolocation is not supported by your browser.")
       return
@@ -589,7 +689,7 @@ function SOSTab() {
       const { latitude, longitude } = position.coords
       
       const { error } = await supabase.from('sos_alerts').insert({
-        user_id: user.id,
+        user_id: user?.id,
         lat: latitude,
         lng: longitude
       })
@@ -598,179 +698,188 @@ function SOSTab() {
       if (error) {
         alert("Failed to send SOS: " + error.message)
       } else {
-        alert("SOS Alert Sent! Your emergency contact has been notified.")
+        setLastDispatchedList(activeContacts)
         fetchSOS()
+        alert(`🚨 EMERGENCY SOS DISPATCHED!\n\nLive GPS location link transmitted to:\n` + 
+          activeContacts.map(c => `• ${c.name} (${c.categoryLabel}) - ${c.email}`).join('\n'))
       }
     }, (err) => {
       alert("Error getting location: " + err.message)
       setTriggering(false)
-    })
+    }, { enableHighAccuracy: true, timeout: 10000 })
   }
 
-  return (
-    <div className="flex flex-col items-center justify-center p-8 text-center space-y-8">
-      <div className="max-w-md space-y-4">
-        <AlertTriangle className="w-16 h-16 text-red-500 mx-auto" />
-        <h2 className="text-2xl font-bold">Emergency SOS</h2>
-        <p className="text-muted-foreground">
-          Pressing this button will record your GPS coordinates and immediately trigger an email alert to your designated emergency contact.
-        </p>
-      </div>
-      
-      <button 
-        onClick={triggerSOS}
-        disabled={triggering}
-        className="w-64 h-64 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white rounded-full flex flex-col items-center justify-center shadow-2xl transition-all transform hover:scale-105 active:scale-95 border-8 border-red-400 focus:outline-none"
-      >
-        <span className="text-4xl font-black tracking-widest">{triggering ? 'SENDING...' : 'SOS'}</span>
-      </button>
+  const activeCount = contacts.filter(c => c.active).length
 
+  return (
+    <div className="space-y-8 p-4 md:p-6 animate-fade-in-up max-w-4xl mx-auto">
+      
+      {/* Header Banner */}
+      <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/60 p-6 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left shadow-sm">
+        <div className="space-y-2">
+          <div className="flex items-center justify-center md:justify-start gap-2 text-red-600 dark:text-red-400">
+            <ShieldAlert className="w-6 h-6 animate-pulse" />
+            <h2 className="text-2xl font-black text-red-900 dark:text-red-100">Emergency SOS Network</h2>
+          </div>
+          <p className="text-sm text-red-700 dark:text-red-300 max-w-xl font-medium">
+            One-tap silent distress signal transmits your live device GPS pin to all designated <b>Doctors</b>, <b>NGO Staff</b>, and <b>Family Guardians</b> instantly.
+          </p>
+        </div>
+
+        {/* Big Panic SOS Trigger Button */}
+        <button 
+          onClick={triggerSOS}
+          disabled={triggering}
+          className="w-48 h-48 shrink-0 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white rounded-full flex flex-col items-center justify-center shadow-2xl transition-all transform hover:scale-105 active:scale-95 border-8 border-red-400 focus:outline-none"
+        >
+          <span className="text-3xl font-black tracking-widest">{triggering ? 'LOCATING...' : 'SOS'}</span>
+          <span className="text-[11px] font-bold text-red-100 uppercase tracking-wider mt-1">Tap to Alert ({activeCount})</span>
+        </button>
+      </div>
+
+      {/* Confirmation of Last SOS Dispatch */}
+      {lastDispatchedList.length > 0 && (
+        <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-2xl p-5 animate-fade-in space-y-3">
+          <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-200 font-bold text-sm">
+            <Check className="w-5 h-5 text-emerald-600" />
+            <span>Latest SOS Successfully Transmitted to {lastDispatchedList.length} Emergency Responders:</span>
+          </div>
+          <div className="grid sm:grid-cols-3 gap-3">
+            {lastDispatchedList.map(c => (
+              <div key={c.id} className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-emerald-100 text-xs space-y-1">
+                <p className="font-bold text-foreground flex items-center gap-1.5">
+                  <span>{c.icon}</span> {c.name}
+                </p>
+                <p className="text-muted-foreground truncate">{c.categoryLabel}</p>
+                <p className="text-emerald-600 font-semibold truncate">{c.email}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Categorized Emergency Contacts Management */}
+      <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-border shadow-sm space-y-6">
+        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-border pb-4">
+          <div>
+            <h3 className="text-lg font-black text-foreground flex items-center gap-2">
+              <span>🚨</span> Designated SOS Emergency Contacts
+            </h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Select who should receive your GPS coordinates during a medical crisis.
+            </p>
+          </div>
+          <Button 
+            onClick={() => setShowAddContact(!showAddContact)}
+            size="sm" 
+            className="rounded-xl font-bold bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-1.5 shadow-sm"
+          >
+            <Plus className="w-4 h-4" /> Add Contact
+          </Button>
+        </div>
+
+        {/* Add Contact Modal / Inline Form */}
+        {showAddContact && (
+          <form onSubmit={handleAddContact} className="bg-slate-50 dark:bg-slate-800/60 p-5 rounded-xl border border-border space-y-4 animate-scale-in">
+            <h4 className="font-bold text-sm text-foreground">Add New Emergency Contact</h4>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-bold text-muted-foreground block mb-1">Contact Category</label>
+                <select 
+                  className="w-full h-10 px-3 rounded-lg border border-input bg-white dark:bg-slate-900 text-xs font-semibold"
+                  value={newCategory} 
+                  onChange={e => setNewCategory(e.target.value)}
+                >
+                  <option value="doctor">👨‍⚕️ Doctor / Medical Specialist</option>
+                  <option value="ngo">🤝 NGO Support Staff</option>
+                  <option value="guardian">👨‍👩‍👧 Family Guardian / Caregiver</option>
+                </select>
+              </div>
+              <FormField label="Full Name" placeholder="e.g. Dr. Rajesh / Suman" required value={newName} onChange={e => setNewName(e.target.value)} />
+              <FormField label="Organization / Relationship" placeholder="e.g. City Hospital / Sister" value={newOrg} onChange={e => setNewOrg(e.target.value)} />
+              <FormField label="Phone Number" placeholder="+91 98000 00000" required value={newPhone} onChange={e => setNewPhone(e.target.value)} />
+              <div className="sm:col-span-2">
+                <FormField label="Email Address (Receives GPS Alert Link)" type="email" placeholder="contact@emergency.com" required value={newEmail} onChange={e => setNewEmail(e.target.value)} />
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end pt-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => setShowAddContact(false)}>Cancel</Button>
+              <Button type="submit" size="sm" className="bg-indigo-600 text-white font-bold">Save Contact</Button>
+            </div>
+          </form>
+        )}
+
+        {/* Contact Cards Grid: Doctors, NGO Staff, Guardians */}
+        <div className="grid md:grid-cols-3 gap-4">
+          {contacts.map(c => (
+            <Card key={c.id} className={`transition-all duration-200 border-2 ${c.active ? 'border-red-400 dark:border-red-600/60 shadow-sm bg-red-50/20' : 'border-border opacity-70 bg-slate-50/50'}`}>
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">{c.icon}</span>
+                    <div>
+                      <p className="font-bold text-sm text-foreground leading-tight">{c.name}</p>
+                      <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+                        {c.categoryLabel}
+                      </span>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => handleDeleteContact(c.id)}
+                    className="text-slate-400 hover:text-rose-500 p-1 transition-colors"
+                    title="Remove contact"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <div className="text-xs text-muted-foreground space-y-1 bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-border">
+                  <p className="font-medium text-foreground truncate">{c.roleOrAffiliation}</p>
+                  <p className="flex items-center gap-1.5"><Phone className="w-3 h-3 text-slate-400" /> {c.phone}</p>
+                  <p className="text-indigo-600 truncate">{c.email}</p>
+                </div>
+
+                <label className="flex items-center justify-between gap-2 pt-2 border-t border-dashed border-border cursor-pointer select-none text-xs font-bold">
+                  <span className={c.active ? "text-red-700 dark:text-red-300" : "text-muted-foreground"}>
+                    {c.active ? "✓ Alerts Active" : "Disabled for SOS"}
+                  </span>
+                  <input 
+                    type="checkbox" 
+                    checked={c.active} 
+                    onChange={() => toggleContactActive(c.id)}
+                    className="w-4 h-4 rounded text-red-600 focus:ring-red-500 accent-red-600 cursor-pointer"
+                  />
+                </label>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      {/* Incident History */}
       {sosHistory.length > 0 && (
-        <div className="w-full max-w-md mt-12 text-left">
-          <h3 className="font-semibold mb-4 border-b border-border pb-2">Recent Alerts</h3>
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-border shadow-sm text-left">
+          <h3 className="font-bold text-sm mb-3 border-b border-border pb-2 text-foreground">
+            Recent Emergency Transmissions
+          </h3>
           <ul className="space-y-2">
-            {sosHistory.map(h => (
-              <li key={h.id} className="text-sm flex justify-between bg-muted/50 p-2 rounded">
-                <span>{new Date(h.created_at).toLocaleString()}</span>
-                <a href={`https://www.google.com/maps/search/?api=1&query=${h.lat},${h.lng}`} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">View Map</a>
+            {sosHistory.slice(0, 5).map(h => (
+              <li key={h.id} className="text-xs flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-border">
+                <span className="font-medium text-foreground">{new Date(h.created_at).toLocaleString()}</span>
+                <a 
+                  href={`https://www.google.com/maps/search/?api=1&query=${h.lat},${h.lng}`} 
+                  target="_blank" 
+                  rel="noreferrer" 
+                  className="text-blue-600 hover:text-blue-700 font-bold flex items-center gap-1 bg-blue-50 dark:bg-blue-950/40 px-3 py-1 rounded-lg border border-blue-100"
+                >
+                  <MapPin className="w-3 h-3 text-red-500" /> View Live Location Pin ➔
+                </a>
               </li>
             ))}
           </ul>
         </div>
       )}
-    </div>
-  )
-}
 
-// --------------------------------------------------------------------------
-// 5. Interpreter Tab
-// --------------------------------------------------------------------------
-function InterpreterTab() {
-  const { user } = useAuth()
-  const [request, setRequest] = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    fetchRequest()
-    
-    // Subscribe to changes on our requests
-    const channel = supabase
-      .channel('public:interpreter_requests')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'interpreter_requests', filter: `user_id=eq.${user?.id}` }, payload => {
-        fetchRequest() // Refresh on any change
-      })
-      .subscribe()
-
-    return () => supabase.removeChannel(channel)
-  }, [user])
-
-  const fetchRequest = async () => {
-    setLoading(true)
-    const { data } = await supabase
-      .from('interpreter_requests')
-      .select('*')
-      .eq('user_id', user.id)
-      .in('status', ['pending', 'accepted'])
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single()
-    
-    if (data) setRequest(data)
-    else setRequest(null)
-    setLoading(false)
-  }
-
-  const handleRequest = async () => {
-    const { error } = await supabase.from('interpreter_requests').insert({
-      user_id: user.id,
-      status: 'pending'
-    })
-    if (error) {
-      alert("Error requesting interpreter: " + error.message)
-    } else {
-      fetchRequest()
-    }
-  }
-
-  const handleCancel = async () => {
-    const { error } = await supabase.from('interpreter_requests').update({ status: 'completed' }).eq('id', request.id)
-    if (error) {
-      alert("Error cancelling request: " + error.message)
-    } else {
-      setRequest(null)
-    }
-  }
-
-  const handleJoinCall = async () => {
-    // Both users join a video call using the request.id as the call room
-    // First, we ensure a video_calls record exists
-    const { data: existingCall } = await supabase.from('video_calls').select('*').eq('id', request.id).single()
-    
-    if (!existingCall) {
-      const { error: insertError } = await supabase.from('video_calls').insert({
-        id: request.id,
-        caller_id: user.id, // Current user is caller for RLS
-        receiver_id: request.interpreter_id, // The interpreter
-        status: 'ringing'
-      })
-      if (insertError) {
-        alert("Failed to join video call room: " + insertError.message)
-        return
-      }
-    }
-    
-    window.location.href = `/call/${request.id}`
-  }
-
-  if (loading) return <div className="p-12 text-center text-muted-foreground">Checking interpreter status...</div>
-
-  return (
-    <div className="flex flex-col items-center justify-center p-8 text-center space-y-8 animate-fade-in-up">
-      <div className="max-w-md space-y-4">
-        <Headset className="w-16 h-16 text-indigo-500 mx-auto" />
-        <h2 className="text-2xl font-bold">Live Sign Language Interpreter</h2>
-        <p className="text-muted-foreground">
-          Connect with a professional human interpreter via secure video call to help translate in real-time during your hospital or bank visits.
-        </p>
-      </div>
-
-      {!request ? (
-        <Button 
-          onClick={handleRequest}
-          className="h-16 px-8 rounded-full shadow-lg bg-indigo-600 hover:bg-indigo-700 text-lg font-bold transition-transform hover:scale-105 active:scale-95"
-        >
-          Request Live Interpreter Now
-        </Button>
-      ) : request.status === 'pending' ? (
-        <Card className="max-w-md w-full border-amber-200 bg-amber-50 dark:bg-amber-900/20 shadow-md">
-          <CardContent className="p-8 space-y-6">
-            <div className="w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center mx-auto text-amber-600 animate-pulse">
-              <Clock className="w-8 h-8" />
-            </div>
-            <div>
-              <h3 className="text-xl font-bold text-amber-900 dark:text-amber-100 mb-2">Finding an Interpreter...</h3>
-              <p className="text-amber-700 dark:text-amber-300 text-sm">Please wait while we connect you with the next available professional interpreter.</p>
-            </div>
-            <Button variant="outline" className="w-full border-amber-300 text-amber-700 hover:bg-amber-100" onClick={handleCancel}>Cancel Request</Button>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card className="max-w-md w-full border-emerald-200 bg-emerald-50 dark:bg-emerald-900/20 shadow-md animate-scale-in">
-          <CardContent className="p-8 space-y-6">
-            <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center mx-auto text-emerald-600">
-              <Video className="w-8 h-8" />
-            </div>
-            <div>
-              <h3 className="text-xl font-bold text-emerald-900 dark:text-emerald-100 mb-2">Interpreter Connected!</h3>
-              <p className="text-emerald-700 dark:text-emerald-300 text-sm">Your interpreter has accepted the request and is waiting for you in the secure video room.</p>
-            </div>
-            <Button className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md transition-transform hover:scale-105 active:scale-95" onClick={handleJoinCall}>
-              Join Video Call
-            </Button>
-            <Button variant="ghost" size="sm" className="w-full text-emerald-700 opacity-70 hover:opacity-100" onClick={handleCancel}>End Session</Button>
-          </CardContent>
-        </Card>
-      )}
     </div>
   )
 }

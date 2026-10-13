@@ -33,62 +33,212 @@ function calculateDistance(lm1, lm2) {
   return Math.sqrt(sum)
 }
 
-// Simple 1-NN Classifier
-export function classifySign(currentLandmarks, templates, threshold = 15.0) {
-  if (!currentLandmarks || !templates || templates.length === 0) return null
-  
-  const normalizedCurrent = normalizeLandmarks(currentLandmarks)
-  
-  let bestMatch = null
-  let minDistance = Infinity
-  
-  for (const template of templates) {
-    if (!template.landmarksList) continue
-    for (const savedFrame of template.landmarksList) {
-      const distance = calculateDistance(normalizedCurrent, savedFrame)
-      if (distance < minDistance) {
-        minDistance = distance
-        bestMatch = template.word
-      }
-    }
+// Calculate 3D Euclidean distance between two points
+function pointDistance(p1, p2) {
+  const dx = p1.x - p2.x
+  const dy = p1.y - p2.y
+  const dz = (p1.z || 0) - (p2.z || 0)
+  return Math.sqrt(dx * dx + dy * dy + dz * dz)
+}
+
+// Geometric feature extractor for Indian Sign Language standard gestures
+export function extractISLFeatures(landmarks) {
+  if (!landmarks || landmarks.length < 21) return null
+
+  const wrist = landmarks[0]
+
+  // Finger tip to wrist distances
+  const thumbTipDist = pointDistance(landmarks[4], wrist)
+  const thumbBaseDist = pointDistance(landmarks[2], wrist)
+  const indexTipDist = pointDistance(landmarks[8], wrist)
+  const indexBaseDist = pointDistance(landmarks[5], wrist)
+  const middleTipDist = pointDistance(landmarks[12], wrist)
+  const middleBaseDist = pointDistance(landmarks[9], wrist)
+  const ringTipDist = pointDistance(landmarks[16], wrist)
+  const ringBaseDist = pointDistance(landmarks[13], wrist)
+  const pinkyTipDist = pointDistance(landmarks[20], wrist)
+  const pinkyBaseDist = pointDistance(landmarks[17], wrist)
+
+  // Extension booleans (tip is significantly further from wrist than MCP joint)
+  const isThumbExtended = thumbTipDist > thumbBaseDist * 1.15
+  const isIndexExtended = indexTipDist > indexBaseDist * 1.3
+  const isMiddleExtended = middleTipDist > middleBaseDist * 1.3
+  const isRingExtended = ringTipDist > ringBaseDist * 1.3
+  const isPinkyExtended = pinkyTipDist > pinkyBaseDist * 1.3
+
+  // Thumbs up check: Thumb tip is higher (lower Y) than MCP and other 4 fingers are curled
+  const isThumbUp = (landmarks[4].y < landmarks[3].y) && (landmarks[3].y < landmarks[2].y) &&
+    !isIndexExtended && !isMiddleExtended && !isRingExtended && !isPinkyExtended
+
+  // Open Palm: All 5 fingers extended
+  const isOpenPalm = isIndexExtended && isMiddleExtended && isRingExtended && isPinkyExtended
+
+  // Flat Palm (fingers extended together)
+  const fingerSpread = pointDistance(landmarks[8], landmarks[12]) + pointDistance(landmarks[12], landmarks[16])
+  const isFlatPalm = isOpenPalm && (fingerSpread < 0.25)
+
+  // Pointing Index ('No' or 'Pain' or '1')
+  const isPointingIndex = isIndexExtended && !isMiddleExtended && !isRingExtended && !isPinkyExtended
+
+  // 'V' shape / Two fingers ('Doctor' pulse check or '2')
+  const isTwoFingers = isIndexExtended && isMiddleExtended && !isRingExtended && !isPinkyExtended
+
+  // 'W' shape / Three fingers ('Water' or '3')
+  const isThreeFingersW = isIndexExtended && isMiddleExtended && isRingExtended && !isPinkyExtended
+
+  // Fist: All fingers curled
+  const isFist = !isIndexExtended && !isMiddleExtended && !isRingExtended && !isPinkyExtended
+
+  return {
+    isThumbUp,
+    isOpenPalm,
+    isFlatPalm,
+    isPointingIndex,
+    isTwoFingers,
+    isThreeFingersW,
+    isFist,
+    wristY: wrist.y,
+    isHandRaised: wrist.y < 0.8
   }
-  
-  if (minDistance < threshold) {
-    const confidence = Math.max(0, Math.min(100, Math.round((1 - minDistance / threshold) * 100)))
-    return { word: bestMatch, distance: minDistance, confidence }
+}
+
+// Geometric rule-based fallback detection for standard ISL words
+export function detectGeometricISLSign(landmarks) {
+  const feat = extractISLFeatures(landmarks)
+  if (!feat) return null
+
+  // 1. "Yes" in ISL: Thumbs up gesture or nodding fist
+  if (feat.isThumbUp) {
+    return { word: 'yes', confidence: 92, rule: 'Thumbs-up affirmative' }
   }
+
+  // 2. "No" in ISL: Pointing index wagging
+  if (feat.isPointingIndex) {
+    return { word: 'no', confidence: 88, rule: 'Index point negation' }
+  }
+
+  // 3. "Water" in ISL: 'W' handshape (3 fingers extended)
+  if (feat.isThreeFingersW) {
+    return { word: 'water', confidence: 90, rule: 'Three fingers W-sign' }
+  }
+
+  // 4. "Doctor" in ISL: Two fingers (Index + Middle) feeling pulse
+  if (feat.isTwoFingers) {
+    return { word: 'doctor', confidence: 89, rule: 'Two fingers medical sign' }
+  }
+
+  // 5. "Hello" / "Goodbye" in ISL: Raised open palm waving
+  if (feat.isOpenPalm && feat.isHandRaised) {
+    return { word: 'hello', confidence: 91, rule: 'Open palm greeting' }
+  }
+
+  // 6. "Thank you": Flat palm extended
+  if (feat.isFlatPalm && feat.isHandRaised) {
+    return { word: 'thank you', confidence: 87, rule: 'Flat palm civility' }
+  }
+
+  // 7. "Help": Fist or raised thumbs up
+  if (feat.isFist && feat.isHandRaised) {
+    return { word: 'help', confidence: 85, rule: 'Raised fist assistance' }
+  }
+
   return null
 }
 
-// Verify if current sign specifically matches the expected target word
-export function verifySpecificSign(currentLandmarks, targetWord, templates, threshold = 15.0) {
-  if (!currentLandmarks || !templates || templates.length === 0 || !targetWord) {
-    return { isMatch: false, reason: 'No landmarks or templates' }
-  }
-  
-  const template = templates.find(t => t.word.toLowerCase() === targetWord.toLowerCase())
-  if (!template || !template.landmarksList || template.landmarksList.length === 0) {
-    return { isMatch: false, reason: 'Sign not enrolled yet' }
-  }
+// Hybrid 1-NN + Rule-Based Classifier for High Accuracy
+export function classifySign(currentLandmarks, templates, threshold = 16.0) {
+  if (!currentLandmarks) return null
   
   const normalizedCurrent = normalizeLandmarks(currentLandmarks)
+  let bestMatch = null
   let minDistance = Infinity
   
-  for (const savedFrame of template.landmarksList) {
-    const distance = calculateDistance(normalizedCurrent, savedFrame)
-    if (distance < minDistance) {
-      minDistance = distance
+  if (templates && templates.length > 0) {
+    for (const template of templates) {
+      if (!template.landmarksList) continue
+      for (const savedFrame of template.landmarksList) {
+        const distance = calculateDistance(normalizedCurrent, savedFrame)
+        if (distance < minDistance) {
+          minDistance = distance
+          bestMatch = template.word
+        }
+      }
+    }
+  }
+
+  // Check template match
+  if (minDistance < threshold && bestMatch) {
+    const confidence = Math.max(0, Math.min(100, Math.round((1 - minDistance / threshold) * 100)))
+    return { word: bestMatch, distance: minDistance, confidence, source: 'template' }
+  }
+
+  // Fallback to geometric ISL rules (covers Learning Hub core signs)
+  const geometricMatch = detectGeometricISLSign(currentLandmarks)
+  if (geometricMatch) {
+    return {
+      word: geometricMatch.word,
+      distance: 5.0,
+      confidence: geometricMatch.confidence,
+      source: 'rule-based'
     }
   }
   
-  const isMatch = minDistance < threshold
-  const confidence = Math.max(0, Math.min(100, Math.round((1 - minDistance / threshold) * 100)))
+  return null
+}
+
+// Verify if current sign specifically matches the expected target word with live posture guidance
+export function verifySpecificSign(currentLandmarks, targetWord, templates, threshold = 16.0) {
+  if (!currentLandmarks || !targetWord) {
+    return { isMatch: false, reason: 'No landmarks or target word', confidence: 0 }
+  }
+
+  const normalizedWord = targetWord.toLowerCase().trim()
+  const normalizedCurrent = normalizeLandmarks(currentLandmarks)
   
+  // 1. Check against user template if enrolled
+  let templateMatch = false
+  let minDistance = Infinity
+  
+  if (templates && templates.length > 0) {
+    const template = templates.find(t => t.word.toLowerCase().trim() === normalizedWord)
+    if (template && template.landmarksList && template.landmarksList.length > 0) {
+      for (const savedFrame of template.landmarksList) {
+        const distance = calculateDistance(normalizedCurrent, savedFrame)
+        if (distance < minDistance) {
+          minDistance = distance
+        }
+      }
+      if (minDistance < threshold) {
+        templateMatch = true
+      }
+    }
+  }
+
+  // 2. Check against geometric rule for the specific word
+  const geo = detectGeometricISLSign(currentLandmarks)
+  const ruleMatch = geo && geo.word === normalizedWord
+
+  const isMatch = templateMatch || ruleMatch
+  const baseConfidence = templateMatch 
+    ? Math.max(0, Math.min(100, Math.round((1 - minDistance / threshold) * 100)))
+    : (ruleMatch ? geo.confidence : 0)
+
+  // Boost confidence if both agree
+  const finalConfidence = (templateMatch && ruleMatch) ? Math.min(98, baseConfidence + 10) : baseConfidence
+
+  let postureFeedback = 'Adjust hand posture to match the sign.'
+  if (isMatch) {
+    postureFeedback = `Correct sign for "${targetWord}"! Great posture.`
+  } else if (geo) {
+    postureFeedback = `Currently detecting "${geo.word}". Switch to "${targetWord}".`
+  }
+
   return {
     isMatch,
     distance: minDistance,
-    confidence,
-    targetWord
+    confidence: finalConfidence,
+    targetWord,
+    postureFeedback
   }
 }
 

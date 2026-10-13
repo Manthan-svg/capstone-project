@@ -22,6 +22,88 @@ import {
   drawHandLandmarks 
 } from '../../lib/classifier'
 
+const ISL_SIGN_GUIDES = {
+  yes: {
+    title: 'Yes',
+    gesture: 'Fist Nod or Thumbs Up',
+    instructions: 'Make a closed fist and bob it up and down at the wrist like a nodding head, or raise a confident thumbs-up.',
+    icon: '👍',
+    videoUrl: 'https://www.youtube-nocookie.com/embed/vO5zC_k9d_I'
+  },
+  no: {
+    title: 'No',
+    gesture: 'Index Point / Snap',
+    instructions: 'Extend index and middle fingers together and snap them down firmly against your thumb, or wag your index finger side-to-side.',
+    icon: '☝️',
+    videoUrl: 'https://www.youtube-nocookie.com/embed/vO5zC_k9d_I'
+  },
+  hello: {
+    title: 'Hello',
+    gesture: 'Open Palm Salute',
+    instructions: 'Touch your fingertips near your forehead/temple in an open-palm salute and move your hand outward with a friendly smile.',
+    icon: '👋',
+    videoUrl: 'https://www.youtube-nocookie.com/embed/5F6o3fGZk_k'
+  },
+  'thank you': {
+    title: 'Thank You',
+    gesture: 'Chin to Forward Palm',
+    instructions: 'Touch the flat fingertips of your hand to your chin or lips, then extend your hand forward toward the person with an open palm.',
+    icon: '🙏',
+    videoUrl: 'https://www.youtube-nocookie.com/embed/bE_iW63mXWc'
+  },
+  help: {
+    title: 'Help',
+    gesture: 'Thumbs-up on Flat Palm',
+    instructions: 'Hold your non-dominant hand flat facing up. Make a thumbs-up fist with your dominant hand and place it on top of the flat palm, raising both together.',
+    icon: '🆘',
+    videoUrl: 'https://www.youtube-nocookie.com/embed/sU74W5cT1uU'
+  },
+  please: {
+    title: 'Please',
+    gesture: 'Chest Circular Rub',
+    instructions: 'Place your flat open palm over your chest/heart and rub in a gentle clockwise circle.',
+    icon: '🤲',
+    videoUrl: 'https://www.youtube-nocookie.com/embed/bE_iW63mXWc'
+  },
+  doctor: {
+    title: 'Doctor',
+    gesture: 'Wrist Pulse Check',
+    instructions: 'Rest your non-dominant wrist facing up. Tap the tips of your index and middle fingers against your pulse point twice.',
+    icon: '👨‍⚕️',
+    videoUrl: 'https://www.youtube-nocookie.com/embed/Xq3_j47M2l8'
+  },
+  pain: {
+    title: 'Pain',
+    gesture: 'Opposing Index Points',
+    instructions: 'Point both index fingers toward each other with a small gap and jab them toward each other repeatedly near the hurting area.',
+    icon: '⚡',
+    videoUrl: 'https://www.youtube-nocookie.com/embed/G_l9N4s0Tyo'
+  },
+  water: {
+    title: 'Water',
+    gesture: 'W-Shape on Chin',
+    instructions: 'Form a "W" with your index, middle, and ring fingers extended upward. Tap your index finger against your chin twice.',
+    icon: '💧'
+  },
+  food: {
+    title: 'Food / Eat',
+    gesture: 'Fingertips to Mouth',
+    instructions: 'Bring your thumb and all fingertips together into a point, then tap them to your lips twice as if putting food in your mouth.',
+    icon: '🍲'
+  },
+  emergency: {
+    title: 'Emergency',
+    gesture: 'Raised Shaking Fist',
+    instructions: 'Form an "E" handshape or raised fist and shake it with an urgent facial expression.',
+    icon: '🚨'
+  }
+}
+
+const DEFAULT_PRACTICE_WORDS = [
+  'yes', 'no', 'hello', 'thank you', 'help', 'please', 'doctor', 'pain', 'water', 'food',
+  'emergency', 'hospital', 'medicine', 'good', 'bad', 'sorry', 'work', 'friend', 'family', 'how are you'
+]
+
 export default function PracticeFlashcards() {
   const [deck, setDeck] = useState([])
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -58,15 +140,30 @@ export default function PracticeFlashcards() {
   const loadEnrolledSigns = async () => {
     setIsLoading(true)
     const { data } = await supabase.auth.getUser()
+    let loadedDeck = []
     if (data?.user) {
       const templates = await getAllTemplates(data.user.id)
-      const normalizedData = templates.map(t => ({
-        ...t,
-        landmarksList: t.landmarksList.map(normalizeLandmarks)
-      }))
-      // Shuffle templates
-      setDeck(normalizedData.sort(() => Math.random() - 0.5))
+      if (templates && templates.length > 0) {
+        loadedDeck = templates.map(t => ({
+          ...t,
+          landmarksList: t.landmarksList.map(normalizeLandmarks)
+        }))
+      }
     }
+    
+    // If user has not enrolled all words yet, supplement with the 20 core ISL words
+    if (loadedDeck.length === 0) {
+      loadedDeck = DEFAULT_PRACTICE_WORDS.map(word => ({ word, landmarksList: [] }))
+    } else {
+      // Ensure key words exist in practice deck
+      DEFAULT_PRACTICE_WORDS.forEach(w => {
+        if (!loadedDeck.some(item => item.word.toLowerCase() === w)) {
+          loadedDeck.push({ word: w, landmarksList: [] })
+        }
+      })
+    }
+
+    setDeck(loadedDeck.sort(() => Math.random() - 0.5))
     setIsLoading(false)
   }
 
@@ -400,12 +497,17 @@ export default function PracticeFlashcards() {
           {/* Right: Enrolled Sign Reference & Video Guide */}
           <Card className="flex flex-col shadow-card-md border-indigo-100 dark:border-indigo-900/40">
             <CardHeader className="py-4 px-6 bg-white dark:bg-slate-900 border-b border-border">
-              <CardTitle className="text-base font-bold flex items-center gap-2 text-foreground">
-                <Sparkles className="w-4 h-4 text-indigo-500" />
-                <span>Reference: Your Enrolled Sign</span>
+              <CardTitle className="text-base font-bold flex items-center justify-between text-foreground">
+                <span className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-indigo-500" />
+                  <span>ISL Demonstration & Reference</span>
+                </span>
+                <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold">
+                  Official ISL
+                </span>
               </CardTitle>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Compare your live posture with how you recorded "{currentWord}".
+                Target gesture instructions for <b className="capitalize text-foreground">"{currentWord}"</b>.
               </p>
             </CardHeader>
 
@@ -420,19 +522,41 @@ export default function PracticeFlashcards() {
                     playsInline
                     className="w-full h-full object-cover transform scale-x-[-1]"
                   />
+                ) : ISL_SIGN_GUIDES[currentWord?.toLowerCase()]?.videoUrl ? (
+                  <iframe
+                    src={`${ISL_SIGN_GUIDES[currentWord?.toLowerCase()].videoUrl}?rel=0&modestbranding=1`}
+                    title={`ISL Demonstration for ${currentWord}`}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    className="w-full h-full border-0"
+                  />
                 ) : (
-                  <p className="text-white text-xs">No video recorded</p>
+                  <div className="flex flex-col items-center justify-center p-6 text-center text-white space-y-2">
+                    <span className="text-5xl">{ISL_SIGN_GUIDES[currentWord?.toLowerCase()]?.icon || '✋'}</span>
+                    <span className="text-sm font-black capitalize text-indigo-300">{currentWord}</span>
+                    <span className="text-xs text-slate-300 max-w-xs">{ISL_SIGN_GUIDES[currentWord?.toLowerCase()]?.gesture}</span>
+                  </div>
                 )}
-                <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-2 text-center">
+                <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-2 text-center pointer-events-none">
                   <span className="text-xs font-medium text-white">Target Sign: <b className="capitalize">{currentWord}</b></span>
                 </div>
               </div>
 
-              <div className="mt-6 w-full space-y-2 text-xs text-muted-foreground bg-white dark:bg-slate-900 p-4 rounded-xl border border-border">
-                <h4 className="font-bold text-foreground">How AI verifies your sign:</h4>
-                <p>1. Camera captures your hand positions in real time.</p>
-                <p>2. Compares wrist and finger angles against your enrolled reference.</p>
-                <p>3. Flags <b className="text-emerald-600">RIGHT</b> when matching, or <b className="text-rose-600">WRONG</b> to help you improve.</p>
+              {/* Instructions Box */}
+              <div className="mt-5 w-full space-y-2 text-xs text-muted-foreground bg-white dark:bg-slate-900 p-4 rounded-xl border border-border">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-foreground text-sm flex items-center gap-1.5">
+                    <span>{ISL_SIGN_GUIDES[currentWord?.toLowerCase()]?.icon || '💡'}</span>
+                    How to Sign "{currentWord}":
+                  </span>
+                </div>
+                <p className="text-foreground/90 font-medium leading-relaxed">
+                  {ISL_SIGN_GUIDES[currentWord?.toLowerCase()]?.instructions || `Perform the Indian Sign Language gesture for "${currentWord}" in front of your camera.`}
+                </p>
+                <div className="pt-2 border-t border-dashed border-border flex items-center justify-between text-[11px] text-indigo-600 font-bold">
+                  <span>Posture Match: Standard ISL</span>
+                  <span>AI Live Analysis Active</span>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -448,17 +572,23 @@ export default function PracticeFlashcards() {
           <div className={`w-full h-full transition-transform duration-700 transform-style-preserve-3d relative ${isFlipped ? 'rotate-y-180' : ''}`}>
             
             {/* Front of Card */}
-            <Card className="absolute w-full h-full backface-hidden flex flex-col items-center justify-center border border-indigo-100 dark:border-indigo-900/50 shadow-card-lg bg-white dark:bg-slate-900 group-hover:shadow-card-xl transition-shadow rounded-3xl">
-              <p className="text-indigo-400 font-bold uppercase tracking-[0.2em] text-sm mb-6 bg-indigo-50 dark:bg-indigo-900/20 px-4 py-1.5 rounded-full">Sign this word</p>
-              <h2 className="text-7xl font-black capitalize text-foreground drop-shadow-sm">{currentWord}</h2>
-              <p className="text-muted-foreground mt-12 text-sm font-medium flex items-center gap-2"><ArrowRight className="w-4 h-4" /> Click card to flip & check reference</p>
+            <Card className="absolute w-full h-full backface-hidden flex flex-col items-center justify-center border border-indigo-100 dark:border-indigo-900/50 shadow-card-lg bg-white dark:bg-slate-900 group-hover:shadow-card-xl transition-shadow rounded-3xl p-8 text-center">
+              <p className="text-indigo-400 font-bold uppercase tracking-[0.2em] text-sm mb-4 bg-indigo-50 dark:bg-indigo-900/20 px-4 py-1.5 rounded-full">Sign this word</p>
+              <h2 className="text-6xl md:text-7xl font-black capitalize text-foreground drop-shadow-sm">{currentWord}</h2>
+              <span className="text-5xl mt-6">{ISL_SIGN_GUIDES[currentWord?.toLowerCase()]?.icon || '✋'}</span>
+              <p className="text-muted-foreground mt-8 text-sm font-medium flex items-center gap-2">
+                <ArrowRight className="w-4 h-4 text-indigo-500" /> Click card to view official ISL demonstration
+              </p>
             </Card>
 
             {/* Back of Card */}
-            <Card className="absolute w-full h-full backface-hidden rotate-y-180 flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 shadow-card-lg rounded-3xl p-8">
-              <p className="text-slate-500 dark:text-slate-400 font-bold uppercase tracking-[0.2em] text-sm mb-6">Did you sign it correctly?</p>
+            <Card className="absolute w-full h-full backface-hidden rotate-y-180 flex flex-col items-center justify-between bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 shadow-card-lg rounded-3xl p-6">
+              <div className="text-center w-full">
+                <p className="text-slate-500 dark:text-slate-400 font-bold uppercase tracking-[0.2em] text-xs mb-2">Did you sign it correctly?</p>
+                <h3 className="text-xl font-black capitalize text-foreground">{currentWord}</h3>
+              </div>
               
-              <div className="w-56 h-56 bg-slate-900 rounded-2xl border border-slate-300 flex items-center justify-center mb-8 shadow-sm relative overflow-hidden">
+              <div className="w-full max-w-xs aspect-video bg-slate-900 rounded-2xl border border-slate-300 flex items-center justify-center shadow-sm relative overflow-hidden my-2">
                 {videoUrl ? (
                   <video 
                     src={videoUrl} 
@@ -468,20 +598,32 @@ export default function PracticeFlashcards() {
                     playsInline
                     className="w-full h-full object-cover transform scale-x-[-1]"
                   />
+                ) : ISL_SIGN_GUIDES[currentWord?.toLowerCase()]?.videoUrl ? (
+                  <iframe
+                    src={`${ISL_SIGN_GUIDES[currentWord?.toLowerCase()].videoUrl}?rel=0&modestbranding=1`}
+                    title={`ISL Demonstration for ${currentWord}`}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    className="w-full h-full border-0"
+                  />
                 ) : (
-                  <p className="text-white">No video saved</p>
+                  <div className="flex flex-col items-center justify-center p-4 text-center text-white space-y-1">
+                    <span className="text-4xl">{ISL_SIGN_GUIDES[currentWord?.toLowerCase()]?.icon || '✋'}</span>
+                    <span className="text-xs text-indigo-200 font-bold">{ISL_SIGN_GUIDES[currentWord?.toLowerCase()]?.gesture || currentWord}</span>
+                  </div>
                 )}
-                <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-2 text-center">
-                  <span className="text-xs font-medium text-white shadow-sm">Your Enrolled Sign: <b className="capitalize">{currentWord}</b></span>
-                </div>
               </div>
 
-              <div className="flex gap-6 w-full max-w-sm px-4">
-                <Button size="lg" className="flex-1 h-14 rounded-2xl text-base font-bold bg-white dark:bg-slate-900 text-rose-600 border-2 border-rose-100 hover:bg-rose-50 shadow-sm" onClick={(e) => { e.stopPropagation(); handleNext(false); }}>
-                  <X className="w-5 h-5 mr-1" /> No, I didn't
+              <div className="w-full max-w-sm px-4 text-center text-xs text-muted-foreground mb-2">
+                <p className="font-medium text-foreground">{ISL_SIGN_GUIDES[currentWord?.toLowerCase()]?.instructions}</p>
+              </div>
+
+              <div className="flex gap-4 w-full max-w-sm px-2">
+                <Button size="lg" className="flex-1 h-12 rounded-xl text-sm font-bold bg-white dark:bg-slate-900 text-rose-600 border-2 border-rose-100 hover:bg-rose-50 shadow-sm" onClick={(e) => { e.stopPropagation(); handleNext(false); }}>
+                  <X className="w-4 h-4 mr-1" /> No, I didn't
                 </Button>
-                <Button size="lg" className="flex-1 h-14 rounded-2xl text-base font-bold bg-emerald-500 hover:bg-emerald-600 text-white shadow-md border-b-4 border-emerald-700" onClick={(e) => { e.stopPropagation(); handleNext(true); }}>
-                  <Check className="w-5 h-5 mr-1" /> Yes, I did!
+                <Button size="lg" className="flex-1 h-12 rounded-xl text-sm font-bold bg-emerald-500 hover:bg-emerald-600 text-white shadow-md border-b-4 border-emerald-700" onClick={(e) => { e.stopPropagation(); handleNext(true); }}>
+                  <Check className="w-4 h-4 mr-1" /> Yes, I did!
                 </Button>
               </div>
             </Card>

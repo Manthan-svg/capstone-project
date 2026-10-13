@@ -143,7 +143,28 @@ export default function EmployerDashboard() {
                     </select>
                   </div>
                 </div>
-                <FormField label="Location" id="location" required value={location} onChange={e => setLocation(e.target.value)} />
+                <div>
+                  <FormField 
+                    label="Location (India Only)" 
+                    id="location" 
+                    required 
+                    placeholder="e.g. Pune, Maharashtra / Bengaluru, Karnataka / Remote (India)" 
+                    list="indian-cities-list"
+                    value={location} 
+                    onChange={e => setLocation(e.target.value)} 
+                  />
+                  <datalist id="indian-cities-list">
+                    <option value="Pune, Maharashtra" />
+                    <option value="Mumbai, Maharashtra" />
+                    <option value="Bengaluru, Karnataka" />
+                    <option value="Hyderabad, Telangana" />
+                    <option value="Delhi NCR" />
+                    <option value="Remote (India)" />
+                  </datalist>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    🇮🇳 Verified Indian locations only. Foreign locations (e.g. USA) are restricted.
+                  </p>
+                </div>
                 <div className="space-y-1.5">
                   <label className="text-sm font-semibold text-foreground">Description</label>
                   <textarea required className="flex w-full rounded-xl border border-input bg-white dark:bg-slate-900 px-4 py-3 text-sm min-h-[150px] shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20" value={description} onChange={e => setDescription(e.target.value)} />

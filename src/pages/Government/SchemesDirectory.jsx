@@ -370,13 +370,19 @@ export default function SchemesDirectory() {
       s.description.toLowerCase().includes(search.toLowerCase()) ||
       s.eligibility.toLowerCase().includes(search.toLowerCase())
     
-    const matchesCategory = selectedCategory === 'All' || s.category === selectedCategory
+    const matchesCategory = 
+      selectedCategory === 'All' 
+        ? true 
+        : selectedCategory === 'Divyang Sahayak Portal'
+        ? (s.category === 'Maharashtra State' || s.apply_url?.includes('divyangsahayak') || s.how_to_apply?.toLowerCase().includes('divyang sahayak') || s.id?.startsWith('mh-'))
+        : s.category === selectedCategory
+
     const matchesType = selectedType === 'All' || s.type === selectedType
 
     return matchesSearch && matchesCategory && matchesType
   })
 
-  const categories = ['All', 'Maharashtra State', 'Central Government', 'Special Benefits & Services']
+  const categories = ['All', 'Divyang Sahayak Portal', 'Maharashtra State', 'Central Government', 'Special Benefits & Services']
   const types = ['All', 'Scholarships & Education', 'Aids & Hearing Devices', 'Self-Employment & Loans', 'Awards & Incentives']
 
   return (

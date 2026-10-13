@@ -80,30 +80,60 @@ export default function CommunicationCore() {
 
   const { isListening, startListening, stopListening, speak } = useSpeech(onSpeechResult)
 
+const TEXT_TO_SIGN_MAP = {
+  hello: { word: 'Hello', icon: '👋', motion: 'Open-palm salute moving outward from temple', videoUrl: 'https://www.youtube-nocookie.com/embed/5F6o3fGZk_k' },
+  hi: { word: 'Hello', icon: '👋', motion: 'Open-palm salute moving outward from temple', videoUrl: 'https://www.youtube-nocookie.com/embed/5F6o3fGZk_k' },
+  bye: { word: 'Goodbye', icon: '👋', motion: 'Hand raised at ear level waving fingers', videoUrl: 'https://www.youtube-nocookie.com/embed/5F6o3fGZk_k' },
+  goodbye: { word: 'Goodbye', icon: '👋', motion: 'Hand raised at ear level waving fingers', videoUrl: 'https://www.youtube-nocookie.com/embed/5F6o3fGZk_k' },
+  thanks: { word: 'Thank You', icon: '🙏', motion: 'Fingertips to chin, extended outward toward person', videoUrl: 'https://www.youtube-nocookie.com/embed/bE_iW63mXWc' },
+  thank: { word: 'Thank You', icon: '🙏', motion: 'Fingertips to chin, extended outward toward person', videoUrl: 'https://www.youtube-nocookie.com/embed/bE_iW63mXWc' },
+  please: { word: 'Please', icon: '🤲', motion: 'Flat palm on chest moving in clockwise circle', videoUrl: 'https://www.youtube-nocookie.com/embed/bE_iW63mXWc' },
+  help: { word: 'Help', icon: '🆘', motion: 'Thumbs-up fist placed on flat open palm, raised together', videoUrl: 'https://www.youtube-nocookie.com/embed/sU74W5cT1uU' },
+  yes: { word: 'Yes', icon: '👍', motion: 'Closed fist bobbing up and down like a nodding head', videoUrl: 'https://www.youtube-nocookie.com/embed/vO5zC_k9d_I' },
+  no: { word: 'No', icon: '☝️', motion: 'Index and middle fingers snapping down against thumb', videoUrl: 'https://www.youtube-nocookie.com/embed/vO5zC_k9d_I' },
+  doctor: { word: 'Doctor', icon: '👨‍⚕️', motion: 'Two fingers tapping wrist pulse twice', videoUrl: 'https://www.youtube-nocookie.com/embed/Xq3_j47M2l8' },
+  pain: { word: 'Pain', icon: '⚡', motion: 'Index fingers pointing towards each other, twisting near pain', videoUrl: 'https://www.youtube-nocookie.com/embed/G_l9N4s0Tyo' },
+  water: { word: 'Water', icon: '💧', motion: 'W-handshape (3 fingers) tapping chin twice' },
+  food: { word: 'Food', icon: '🍲', motion: 'Fingertips gathered together tapping lips twice' },
+  eat: { word: 'Food', icon: '🍲', motion: 'Fingertips gathered together tapping lips twice' },
+  emergency: { word: 'Emergency', icon: '🚨', motion: 'Raised shaking E-fist with urgent expression' },
+  hospital: { word: 'Hospital', icon: '🏥', motion: 'Index and middle finger drawing cross on shoulder' },
+  medicine: { word: 'Medicine', icon: '💊', motion: 'Middle finger grinding in center of open palm' }
+}
+
+  const [activeSignMatch, setActiveSignMatch] = useState(null)
+
   const processTextToSign = (text) => {
-    // Extremely simplistic keyword matching for Text-to-Sign demo
-    const words = text.toLowerCase().replace(/[^\w\s]/gi, '').split(' ')
+    const words = text.toLowerCase().replace(/[^\w\s]/gi, '').split(/\s+/)
     
-    // Find first word in our templates
+    // 1. Check user recorded templates
     for (const w of words) {
-      const template = templatesRef.current.find(t => t.word === w)
+      const template = templatesRef.current.find(t => t.word.toLowerCase() === w)
       if (template && template.videoBlob) {
         const url = URL.createObjectURL(template.videoBlob)
         setPlayingVideoUrl(url)
+        setActiveSignMatch({ word: template.word, icon: '🎬', motion: 'Your enrolled custom sign video' })
         return
       }
     }
-    // Fallback if no keyword matched
-    setPlayingVideoUrl(null)
-    setCurrentEmojiFallback('🤷‍♂️')
-    setTimeout(() => setCurrentEmojiFallback('👋'), 2000)
-  }
 
-  useEffect(() => {
-    if (playingVideoUrl && avatarVideoRef.current) {
-      avatarVideoRef.current.play().catch(e => console.error(e))
+    // 2. Check built-in ISL dictionary for Text-to-Sign Interpreter
+    for (const w of words) {
+      if (TEXT_TO_SIGN_MAP[w]) {
+        const item = TEXT_TO_SIGN_MAP[w]
+        setActiveSignMatch(item)
+        setPlayingVideoUrl(null)
+        return
+      }
     }
-  }, [playingVideoUrl])
+
+    // Fallback
+    setActiveSignMatch({
+      word: words[0] || 'Translating...',
+      icon: '💬',
+      motion: 'Speech recognized and displayed in conversation transcript.'
+    })
+  }
 
   // --------------------------------------------------------------------------
   // Sign Recognition Logic (Deaf Pane)
@@ -290,20 +320,74 @@ export default function CommunicationCore() {
                   </Button>
                 </div>
               </>
-            ) : (
-              <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center z-10">
-                <div className="w-32 h-32 opacity-80 mb-4 group-hover:scale-105 transition-transform duration-500">
-                  <img src={earListening} alt="Ear Listening" className="w-full h-full object-contain drop-shadow-xl" />
+            ) : activeSignMatch ? (
+              <div className="absolute inset-0 flex flex-col items-center justify-between p-6 bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-950/30 dark:to-slate-900 z-10 animate-fade-in">
+                <div className="flex items-center justify-between w-full">
+                  <span className="text-[10px] font-black uppercase tracking-wider bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 px-2.5 py-1 rounded-full border border-purple-200">
+                    Text-to-Sign Interpreter Active
+                  </span>
+                  <button onClick={() => setActiveSignMatch(null)} className="text-xs text-muted-foreground hover:text-foreground">
+                    ✕ Dismiss
+                  </button>
                 </div>
-                <p className="text-sm text-muted-foreground max-w-xs mb-6">
-                  {isListening ? "Listening... Speak now." : "Speak and see the sign language in real-time."}
-                </p>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-600">
-                    {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+
+                <div className="text-center my-auto space-y-3">
+                  <span className="text-6xl animate-bounce block">{activeSignMatch.icon}</span>
+                  <h3 className="text-2xl font-black capitalize text-foreground">{activeSignMatch.word}</h3>
+                  <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm p-3.5 rounded-2xl border border-purple-100 dark:border-purple-900 max-w-xs shadow-sm">
+                    <p className="text-xs font-bold text-purple-900 dark:text-purple-200">{activeSignMatch.motion}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 w-full justify-center">
+                  <Button 
+                    size="sm"
+                    className={`rounded-full shadow-sm text-xs font-bold ${isListening ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-purple-600 hover:bg-purple-700 text-white'}`}
+                    onClick={isListening ? stopListening : startListening}
+                  >
+                    {isListening ? 'Stop Mic' : 'Speak More'}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="absolute inset-0 flex flex-col items-center justify-between p-5 text-center z-10">
+                <div className="my-auto flex flex-col items-center">
+                  <div className="w-24 h-24 opacity-80 mb-3 group-hover:scale-105 transition-transform duration-500">
+                    <img src={earListening} alt="Ear Listening" className="w-full h-full object-contain drop-shadow-xl" />
+                  </div>
+                  <p className="text-xs text-muted-foreground max-w-xs font-medium">
+                    {isListening ? "Listening... Speak now." : "Speak or select a phrase below to convert speech to Indian Sign Language in real-time."}
+                  </p>
+                </div>
+
+                {/* Quick Phrases for Hearing User */}
+                <div className="w-full space-y-2 pt-2 border-t border-dashed border-border">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block text-left">
+                    Quick Text-to-Sign Demo Phrases:
+                  </span>
+                  <div className="flex flex-wrap gap-1.5 justify-center">
+                    {['Hello', 'Thank You', 'Help', 'Yes', 'No', 'Doctor', 'Water'].map(phrase => (
+                      <button
+                        key={phrase}
+                        onClick={() => {
+                          addMessage('hearing', phrase)
+                          processTextToSign(phrase)
+                        }}
+                        className="text-[11px] font-bold px-2.5 py-1 bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 rounded-lg hover:bg-purple-100 border border-purple-200 transition-colors shadow-xs"
+                      >
+                        {phrase}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 mt-3">
+                  <div className="w-9 h-9 rounded-full bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center text-purple-600">
+                    {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
                   </div>
                   <Button 
-                    className={`rounded-full shadow-sm ${isListening ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-purple-600 hover:bg-purple-700 text-white'}`}
+                    size="sm"
+                    className={`rounded-full shadow-sm text-xs font-bold ${isListening ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-purple-600 hover:bg-purple-700 text-white'}`}
                     onClick={isListening ? stopListening : startListening}
                   >
                     {isListening ? 'Stop Mic' : 'Start Speaking'}
